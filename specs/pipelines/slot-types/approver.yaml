@@ -1,0 +1,58 @@
+# SlotType: approver
+# Category: governance
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "approver"
+  name: "Decision Approver"
+  category: "governance"
+  description: >
+    Makes Go/No-Go decisions based on review results, research findings,
+    or other inputs. Typically filled by the CEO/Team Lead (human) but
+    can also be filled by a PMO or senior agent for lower-stakes decisions.
+
+  input_schema:
+    type: object
+    required:
+      - decision_input
+    properties:
+      decision_input:
+        type: string
+        description: "Path to the primary input (REVIEW.yaml, research report, etc.)"
+      supporting_artifacts:
+        type: array
+        items:
+          type: string
+        description: "Paths to additional context for the decision"
+
+  output_schema:
+    type: object
+    required:
+      - decision
+    properties:
+      decision:
+        type: string
+        enum:
+          - approved
+          - rejected
+          - deferred
+        description: "The approval decision"
+      conditions:
+        type: array
+        items:
+          type: string
+        description: "Conditions attached to the decision (if any)"
+      rationale:
+        type: string
+        description: "Brief explanation of the decision"
+
+  required_capabilities:
+    - decision_making
+
+  constraints:
+    - "Must review all provided inputs before deciding"
+    - "Must check for P0/P1 blocking issues before approving"
+    - "Must provide rationale for the decision"
+    - "Rejection must include specific items to address"

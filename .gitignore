@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Pipeline state (runtime, not source)
+state/active/
+state/archive/
+.state.yaml
+
+# Environment
+.env
+.env.*
+*.key
+*.pem
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db

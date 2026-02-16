@@ -1,0 +1,14 @@
+# Pipeline without the `pipeline:` wrapper key
+id: "bare-test"
+name: "Bare Pipeline"
+version: "1.0.0"
+description: "Pipeline with bare fields (no wrapper key)"
+created_by: "test"
+created_at: "2026-01-01T00:00:00Z"
+
+slots:
+  - id: "slot-only"
+    slot_type: "designer"
+    name: "Only Slot"
+    task:
+      objective: "Do something"

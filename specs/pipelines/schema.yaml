@@ -1,0 +1,588 @@
+# Pipeline Definition Schema
+# Version: 2.0
+# Author: ARCH-001
+# Date: 2026-02-16
+#
+# This file defines the structure that all pipeline YAML files must follow.
+# The pipeline engine validator checks pipeline definitions against this schema.
+#
+# Migration from v1.0:
+#   - steps[] -> slots[] with slot_type (no role/agent_prompt)
+#   - Added data_flow[] for explicit DAG edges
+#   - Removed step-level type field (slot_type conveys this)
+#   - from_step -> from_slot in artifact references
+#   - step_completed -> slot_completed in condition types
+#   - state_schema: steps{} -> slots{} with SlotState
+#
+# Usage:
+#   Pipeline templates in templates/ must conform to this schema.
+#   The validator (engineer/src/pipeline/validator.py) uses this as reference.
+
+---
+
+# ===========================================================================
+# TOP-LEVEL STRUCTURE
+# ===========================================================================
+
+pipeline_schema:
+  pipeline:
+    # --- Required fields ---
+    id:
+      type: string
+      required: true
+      pattern: "^[a-z][a-z0-9-]*$"   # kebab-case
+      description: "Unique pipeline identifier"
+      example: "quant-strategy-optimization"
+
+    name:
+      type: string
+      required: true
+      description: "Human-readable display name"
+      example: "Quantitative Strategy Optimization"
+
+    version:
+      type: string
+      required: true
+      pattern: "^\\d+\\.\\d+\\.\\d+$"  # semver
+      description: "Semantic version"
+      example: "2.0.0"
+
+    description:
+      type: string
+      required: true
+      description: "Purpose of this pipeline"
+
+    created_by:
+      type: string
+      required: true
+      description: "Role ID or name of pipeline creator"
+
+    created_at:
+      type: string
+      required: true
+      format: "iso8601"
+      description: "Creation timestamp"
+
+    # --- Optional fields ---
+    parameters:
+      type: list
+      required: false
+      items:
+        type: object
+        fields:
+          name:
+            type: string
+            required: true
+            description: "Parameter name (used as {name} in path templates)"
+          type:
+            type: string
+            required: true
+            enum: ["string", "int", "bool", "list"]
+          default:
+            type: any
+            required: false
+            description: "Default value if not provided at invocation"
+          required:
+            type: bool
+            required: false
+            default: false
+          description:
+            type: string
+            required: true
+
+    data_flow:
+      type: list
+      required: false
+      default: []
+      items:
+        type: object
+        # See DATA FLOW EDGE SCHEMA below
+
+    slots:
+      type: list
+      required: true
+      min_items: 1
+      items:
+        type: object
+        # See SLOT SCHEMA below
+
+
+# ===========================================================================
+# DATA FLOW EDGE SCHEMA
+# ===========================================================================
+
+data_flow_edge_schema:
+  from_slot:
+    type: string
+    required: true
+    description: "Slot ID that produces the artifact"
+
+  to_slot:
+    type: string
+    required: true
+    description: "Slot ID that consumes the artifact"
+
+  artifact:
+    type: string
+    required: true
+    description: "Name of the artifact being passed (must match producer's output name)"
+
+  required:
+    type: bool
+    required: false
+    default: true
+    description: "true = blocking dependency; false = optional enrichment (slot can start without it)"
+
+
+# ===========================================================================
+# SLOT SCHEMA
+# ===========================================================================
+
+slot_schema:
+  # --- Required fields ---
+  id:
+    type: string
+    required: true
+    pattern: "^[a-z][a-z0-9-]*$"
+    description: "Unique slot identifier within pipeline"
+
+  slot_type:
+    type: string
+    required: true
+    description: >
+      References a SlotType definition ID from specs/pipelines/slot-types/.
+      Valid values include: designer, researcher, implementer, reviewer,
+      approver, deployer, auditor, and any custom SlotType.
+    examples:
+      - "designer"
+      - "implementer"
+      - "reviewer"
+      - "approver"
+      - "researcher"
+      - "deployer"
+      - "auditor"
+
+  name:
+    type: string
+    required: true
+    description: "Human-readable slot name"
+
+  # --- Optional fields ---
+  inputs:
+    type: list
+    required: false
+    default: []
+    items:
+      type: object
+      fields:
+        name:
+          type: string
+          required: true
+          description: "Input artifact name"
+        from_slot:
+          type: string
+          required: true
+          description: "Slot ID that produces this artifact, or 'external'"
+        artifact:
+          type: string
+          required: true
+          description: "Artifact name from producing slot's outputs"
+        required:
+          type: bool
+          required: false
+          default: true
+          description: "true = blocking dependency; false = optional enrichment"
+
+  outputs:
+    type: list
+    required: false
+    default: []
+    items:
+      type: object
+      fields:
+        name:
+          type: string
+          required: true
+          description: "Output artifact identifier"
+        type:
+          type: string
+          required: true
+          enum:
+            - design_doc
+            - code
+            - test_code
+            - delivery_yaml
+            - review_yaml
+            - config
+            - research
+            - audit_report
+            - agent_prompt
+            - approval
+            - deployment
+            - slot_output
+          description: "Artifact type category"
+        path:
+          type: string
+          required: false
+          nullable: true
+          description: "Expected file path relative to project root (null for non-file outputs)"
+        validation:
+          type: string
+          required: false
+          default: "exists"
+          enum: ["checksum", "schema", "exists", "none"]
+          description: "How to validate this artifact"
+
+  pre_conditions:
+    type: list
+    required: false
+    default: []
+    items:
+      type: object
+      fields:
+        check:
+          type: string
+          required: true
+          description: "Human-readable description of the condition"
+        type:
+          type: string
+          required: true
+          enum:
+            - file_exists      # File exists at target path
+            - gate_pass        # PMO gate has been passed
+            - approval         # Human approval received
+            - artifact_valid   # Artifact exists and passes validation
+            - slot_completed   # Another slot has completed
+            - custom           # Custom expression
+          description: "Condition evaluation type"
+        target:
+          type: string
+          required: true
+          description: "Evaluation target (file path, gate name, slot ID, or expression)"
+
+  post_conditions:
+    type: list
+    required: false
+    default: []
+    items:
+      type: object
+      fields:
+        check:
+          type: string
+          required: true
+          description: "Human-readable description of the condition"
+        type:
+          type: string
+          required: true
+          enum:
+            - delivery_valid   # validate_delivery() passes
+            - review_valid     # validate_review() passes
+            - tests_pass       # Test results show 0 failures
+            - gate_pass        # PMO gate passes
+            - checksum_match   # File checksums match DELIVERY.yaml
+            - custom           # Custom expression
+          description: "Condition evaluation type"
+        target:
+          type: string
+          required: true
+          description: "Evaluation target"
+
+  depends_on:
+    type: list
+    required: false
+    default: []
+    items:
+      type: string
+    description: >
+      Slot IDs that must complete before this slot can start.
+      Note: data_flow edges with required=true also create implicit
+      dependencies. depends_on is for additional ordering constraints
+      not expressed through data flow.
+
+  task:
+    type: object
+    required: false
+    fields:
+      objective:
+        type: string
+        required: true
+        description: "What the agent must accomplish"
+      context_files:
+        type: list
+        required: false
+        default: []
+        items:
+          type: string
+        description: "Files the agent must read before starting"
+      deliverables:
+        type: list
+        required: false
+        default: []
+        items:
+          type: string
+        description: "Expected output descriptions"
+      constraints:
+        type: list
+        required: false
+        default: []
+        items:
+          type: string
+        description: "Rules the agent must follow"
+      kpis:
+        type: list
+        required: false
+        default: []
+        items:
+          type: string
+        description: "How success is measured"
+
+  execution:
+    type: object
+    required: false
+    fields:
+      timeout_hours:
+        type: float
+        required: false
+        default: 4.0
+        min: 0.5
+        max: 48.0
+        description: "Maximum hours for this slot"
+      retry_on_fail:
+        type: bool
+        required: false
+        default: true
+      max_retries:
+        type: int
+        required: false
+        default: 2
+        min: 0
+        max: 5
+      parallel_group:
+        type: string
+        required: false
+        nullable: true
+        description: "Slots with same group ID can run concurrently"
+
+
+# ===========================================================================
+# VALIDATION RULES (enforced by pipeline_validator)
+# ===========================================================================
+
+validation_rules:
+  # 1. DAG acyclicity: depends_on + data_flow graph must have no cycles
+  dag_acyclic: true
+
+  # 2. Input-output compatibility: every data_flow edge must reference
+  #    an existing slot with a matching output artifact name
+  io_compatible: true
+
+  # 3. Slot type existence: every slot's slot_type must exist in
+  #    specs/pipelines/slot-types/
+  slot_type_exists: true
+
+  # 4. Terminal slot: at least one slot must have no dependents (nothing
+  #    depends_on it and no data_flow edges originate from it)
+  terminal_slot_exists: true
+
+  # 5. Implementer slots must have delivery_valid post-condition
+  implementer_has_delivery: true
+
+  # 6. Reviewer slots must have review_valid or custom post-condition
+  reviewer_has_review: true
+
+  # 7. No duplicate slot IDs
+  unique_slot_ids: true
+
+  # 8. All depends_on references point to existing slot IDs
+  valid_dependencies: true
+
+  # 9. Parameters referenced in paths must be declared in pipeline.parameters
+  parameters_declared: true
+
+  # 10. Data flow edge references: from_slot and to_slot must exist
+  valid_data_flow: true
+
+  # 11. Data flow artifact names must match producer slot's output names
+  data_flow_artifact_match: true
+
+
+# ===========================================================================
+# SLOT TYPE DEFAULTS (applied by validator when slot does not explicitly
+# define conditions -- keyed by slot_type ID, not step type enum)
+# ===========================================================================
+
+slot_type_defaults:
+  designer:
+    implied_pre_conditions:
+      - type: "file_exists"
+        target: "architect/integration-contract.md"
+    implied_post_conditions:
+      - type: "custom"
+        target: "design document exists"
+
+  implementer:
+    implied_pre_conditions:
+      - type: "file_exists"
+        target: "architect/integration-contract.md"
+    implied_post_conditions:
+      - type: "delivery_valid"
+        target: "engineer/DELIVERY.yaml"
+      - type: "tests_pass"
+        target: "engineer/tests/"
+
+  reviewer:
+    implied_pre_conditions:
+      - type: "delivery_valid"
+        target: "engineer/DELIVERY.yaml"
+    implied_post_conditions:
+      - type: "review_valid"
+        target: "qa/REVIEW.yaml"
+
+  approver:
+    implied_pre_conditions:
+      - type: "slot_completed"
+        target: "previous_review_slot"
+    implied_post_conditions: []
+
+  deployer:
+    implied_pre_conditions:
+      - type: "approval"
+        target: "ceo_deploy_approval"
+    implied_post_conditions:
+      - type: "custom"
+        target: "deployment verified"
+
+  researcher:
+    implied_pre_conditions: []
+    implied_post_conditions:
+      - type: "custom"
+        target: "research report exists"
+
+  auditor:
+    implied_pre_conditions: []
+    implied_post_conditions:
+      - type: "custom"
+        target: "audit report exists"
+
+
+# ===========================================================================
+# PIPELINE STATE SCHEMA (for .state.yaml files)
+# ===========================================================================
+
+state_schema:
+  pipeline_id:
+    type: string
+    required: true
+
+  pipeline_version:
+    type: string
+    required: true
+
+  pipeline_definition_hash:
+    type: string
+    required: true
+    format: "sha256:<hex>"
+    description: "Hash of the pipeline YAML for integrity verification"
+
+  status:
+    type: string
+    required: true
+    enum: ["loaded", "validated", "running", "paused", "completed", "failed", "aborted"]
+
+  started_at:
+    type: string
+    required: false
+    format: "iso8601"
+
+  completed_at:
+    type: string
+    required: false
+    format: "iso8601"
+
+  parameters:
+    type: object
+    required: true
+    description: "Resolved parameter values for this run"
+
+  slots:
+    type: object
+    required: true
+    description: "Map of slot_id -> SlotState"
+    values:
+      type: object
+      fields:
+        status:
+          type: string
+          enum: ["pending", "blocked", "ready", "pre_check", "in_progress",
+                 "post_check", "completed", "failed", "skipped", "retrying"]
+        started_at:
+          type: string
+          nullable: true
+        completed_at:
+          type: string
+          nullable: true
+        retry_count:
+          type: int
+          default: 0
+        error:
+          type: string
+          nullable: true
+        agent_id:
+          type: string
+          nullable: true
+          description: "Agent ID assigned to this slot (from SlotAssignment)"
+        agent_prompt:
+          type: string
+          nullable: true
+          description: "Path to agent .md file (from SlotAssignment)"
+        pre_check_results:
+          type: list
+          items:
+            type: object
+            fields:
+              condition: {type: string}
+              passed: {type: bool}
+              evidence: {type: string}
+              checked_at: {type: string}
+        post_check_results:
+          type: list
+          items:
+            type: object
+            fields:
+              condition: {type: string}
+              passed: {type: bool}
+              evidence: {type: string}
+              checked_at: {type: string}
+
+
+# ===========================================================================
+# SLOT ASSIGNMENT SCHEMA (for slot-assignments.yaml files)
+# ===========================================================================
+
+slot_assignment_schema:
+  assignments:
+    type: list
+    required: true
+    items:
+      type: object
+      fields:
+        slot_id:
+          type: string
+          required: true
+          description: "Slot ID from the pipeline definition"
+        slot_type:
+          type: string
+          required: true
+          description: "Slot type (must match slot's slot_type)"
+        agent_id:
+          type: string
+          required: true
+          description: "Agent ID (e.g., ENG-001)"
+        agent_prompt:
+          type: string
+          required: true
+          description: "Path to agent .md file"
+        reason:
+          type: string
+          required: false
+          description: "Rationale for this assignment"

@@ -1,0 +1,17 @@
+pipeline:
+  id: "cycle-test"
+  name: "Cycle Pipeline"
+  version: "1.0.0"
+  description: "Pipeline with dependency cycle"
+  created_by: "test"
+  created_at: "2026-01-01T00:00:00Z"
+
+  slots:
+    - id: "slot-a"
+      slot_type: "designer"
+      name: "Slot A"
+      depends_on: ["slot-b"]
+    - id: "slot-b"
+      slot_type: "implementer"
+      name: "Slot B"
+      depends_on: ["slot-a"]

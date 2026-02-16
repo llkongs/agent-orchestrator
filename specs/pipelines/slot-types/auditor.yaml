@@ -1,0 +1,66 @@
+# SlotType: auditor
+# Category: security
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "auditor"
+  name: "Security Auditor"
+  category: "security"
+  description: >
+    Conducts security audits of code, infrastructure, and configuration.
+    Produces structured findings with severity ratings and actionable
+    remediation recommendations. Can also perform re-audits to verify
+    that previous findings have been resolved.
+
+  input_schema:
+    type: object
+    required:
+      - audit_target
+    properties:
+      audit_target:
+        type: string
+        description: "Path to the codebase or component to audit"
+      audit_scope:
+        type: string
+        enum:
+          - full
+          - code-only
+          - vm-only
+          - network-only
+        description: "Scope of the audit"
+      prior_findings:
+        type: string
+        description: "Path to prior findings YAML (for re-audit comparison)"
+
+  output_schema:
+    type: object
+    required:
+      - audit_report
+      - findings
+    properties:
+      audit_report:
+        type: string
+        description: "Path to the audit report (.md)"
+      findings:
+        type: string
+        description: "Path to structured findings (.yaml)"
+      critical_count:
+        type: integer
+        description: "Number of CRITICAL findings"
+      high_count:
+        type: integer
+        description: "Number of HIGH findings"
+
+  required_capabilities:
+    - security_audit
+    - owasp_review
+    - infrastructure_review
+
+  constraints:
+    - "Must follow OWASP Top 10 for code review"
+    - "Must categorize findings by severity (CRITICAL, HIGH, MEDIUM, LOW)"
+    - "Must provide actionable remediation for each finding"
+    - "Must check for prohibited actions compliance"
+    - "Must produce output within timeout"

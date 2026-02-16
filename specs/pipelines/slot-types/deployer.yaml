@@ -1,0 +1,62 @@
+# SlotType: deployer
+# Category: operations
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "deployer"
+  name: "Deployment Operator"
+  category: "operations"
+  description: >
+    Deploys approved code to production/staging environments. Handles
+    pre-deployment snapshots, file transfer, service restart, and
+    post-deployment smoke tests. Typically filled by the same engineer
+    who implemented the code, but can be a dedicated DevOps agent.
+
+  input_schema:
+    type: object
+    required:
+      - approval
+      - code
+    properties:
+      approval:
+        type: string
+        description: "Reference to the approval decision (from approver slot)"
+      code:
+        type: string
+        description: "Path to the code directory to deploy"
+      deployment_config:
+        type: string
+        description: "Path to deployment configuration (optional)"
+
+  output_schema:
+    type: object
+    required:
+      - deployment_status
+    properties:
+      deployment_status:
+        type: string
+        enum:
+          - success
+          - rollback
+          - failed
+        description: "Final deployment status"
+      smoke_test_results:
+        type: string
+        description: "Path to smoke test output log"
+      rollback_snapshot:
+        type: string
+        description: "PVE snapshot ID used for rollback capability"
+
+  required_capabilities:
+    - deployment
+    - ssh_operations
+    - service_management
+
+  constraints:
+    - "Must take a PVE snapshot before deployment"
+    - "Must verify service is running after deployment"
+    - "Must run smoke tests after deployment"
+    - "Must be able to rollback on failure"
+    - "Must produce output within timeout"

@@ -1,0 +1,17 @@
+slot_type:
+  id: "designer"
+  name: "Architecture Designer"
+  category: "architecture"
+  description: "Produces design documents"
+  input_schema:
+    type: object
+    required:
+      - requirements
+  output_schema:
+    type: object
+    required:
+      - design_doc
+  required_capabilities:
+    - system_design
+    - interface_definition
+    - technical_documentation

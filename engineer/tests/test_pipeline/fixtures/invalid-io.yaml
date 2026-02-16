@@ -1,0 +1,24 @@
+pipeline:
+  id: "io-test"
+  name: "IO Mismatch Pipeline"
+  version: "1.0.0"
+  description: "Pipeline with I/O incompatibility"
+  created_by: "test"
+  created_at: "2026-01-01T00:00:00Z"
+
+  slots:
+    - id: "slot-a"
+      slot_type: "designer"
+      name: "Slot A"
+      outputs:
+        - name: "report"
+          type: "research"
+    - id: "slot-b"
+      slot_type: "implementer"
+      name: "Slot B"
+      depends_on: ["slot-a"]
+
+  data_flow:
+    - from_slot: "slot-a"
+      to_slot: "slot-b"
+      artifact: "design_doc"

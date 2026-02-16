@@ -1,0 +1,84 @@
+# Slot Output: Designer Slot (GD-001)
+# Pipeline: WP-4.1 Spring Festival Gala Mini-Game
+# Date: 2026-02-16
+
+slot_id: "wp-4.1-designer"
+slot_type: "designer"
+agent_id: "GD-001"
+status: "completed"
+timestamp: "2026-02-16T17:00:00+08:00"
+
+input_artifacts:
+  - id: "research-report"
+    path: "cultural-researcher/spring-festival-gala-mini-game-research.md"
+    source_slot: "wp-4.1-researcher"
+    consumed: true
+
+output_artifacts:
+  - id: "game-design-document"
+    path: "game-designer/spring-festival-gala-mini-game-gdd.md"
+    type: "game-design-document"
+    description: >
+      Comprehensive GDD for "Wan Jia Deng Huo" (Ten Thousand Homes Ablaze),
+      a cooperative multi-generational Spring Festival Gala mini-game.
+      Contains all 12 required GDD sections plus 3 appendices.
+
+output_summary:
+  game_title: "Wan Jia Deng Huo (万家灯火 / Ten Thousand Homes Ablaze)"
+  genre: "Cooperative casual / party game"
+  platform: "WeChat Mini Program (primary)"
+  target_audience: "Multi-generational Chinese families (ages 6-80+)"
+  session_length: "3-5 min per round; spans full Chunwan broadcast"
+  player_count: "2-8 per family team; millions server-wide"
+
+  core_mechanic: >
+    Three differentiated roles (Firekeeper/shake, Lantern Hanger/tap, Guardian/defend)
+    cooperate to light lanterns in a shared virtual village before midnight.
+    Families compete at province level on a national map.
+
+  cultural_elements_integrated: 7
+  cultural_elements:
+    - "Lanterns (core mechanic)"
+    - "Nian beast (antagonist mechanic)"
+    - "Red envelopes (reward mechanic)"
+    - "Horse year / Jixiang Ma (timed event mechanic)"
+    - "Family reunion (team cooperation structure)"
+    - "Fireworks (climax collective display)"
+    - "Spring couplets (AI-personalized shareable trophy)"
+
+  fun_moments_defined: 3
+  precedents_cited: 8
+  risks_identified: 6
+  accessibility_features: 7
+
+  research_recommendations_addressed:
+    - recommendation: "Family Living Room cooperative game"
+      addressed: true
+      implementation: "Core team mechanic with differentiated roles per generation"
+    - recommendation: "Collectible + instant reward dual loop"
+      addressed: true
+      implementation: "Micro-hongbao per lantern + horse collectible long-arc"
+    - recommendation: "AI as enhancement, not core"
+      addressed: true
+      implementation: "AI couplet at game end; core loop requires no AI interaction"
+    - recommendation: "7-day holiday period"
+      addressed: true
+      implementation: "Regional village unlocks extend play through full holiday"
+    - recommendation: "Broadcast synchronization"
+      addressed: true
+      implementation: "Golden Horse events synced to Chunwan broadcast moments"
+
+quality_checklist:
+  all_12_sections_present: true
+  core_loop_diagrammed: true
+  precedents_cited_count: 8
+  cultural_elements_with_mechanical_integration: 7
+  fun_moments_defined_count: 3
+  rules_explainable_in_60_seconds: true
+  rules_explanation: >
+    Shake to make sparks. Tap to hang lanterns. Tap fast to chase away monsters.
+    Light up your village as a family before midnight.
+  playable_by_ages_6_to_80: true
+  risks_with_mitigations_count: 6
+  culturally_insensitive_content: false
+  sensitivity_checklist_passed: true

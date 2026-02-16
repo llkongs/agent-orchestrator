@@ -1,0 +1,75 @@
+# SlotType: researcher
+# Category: research
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "researcher"
+  name: "Research Analyst"
+  category: "research"
+  description: >
+    Investigates topics, analyzes data, and produces structured research
+    reports with findings, recommendations, and confidence levels. Cites
+    all sources. Does NOT write implementation code.
+
+  input_schema:
+    type: object
+    required:
+      - research_brief
+    properties:
+      research_brief:
+        type: string
+        description: "The research question, scope, and objectives"
+      context_artifacts:
+        type: array
+        items:
+          type: string
+        description: "Paths to existing context files (design docs, prior research)"
+      constraints:
+        type: array
+        items:
+          type: string
+        description: "Specific research constraints or focus areas"
+
+  output_schema:
+    type: object
+    required:
+      - research_report
+      - confidence_level
+    properties:
+      research_report:
+        type: string
+        description: "Path to the research report file (.md)"
+      confidence_level:
+        type: string
+        enum:
+          - high
+          - medium
+          - low
+        description: "Overall confidence in findings"
+      key_findings:
+        type: array
+        items:
+          type: string
+        description: "List of key findings (1 sentence each)"
+      sources_cited:
+        type: integer
+        description: "Number of sources cited in the report"
+      recommendations:
+        type: array
+        items:
+          type: string
+        description: "Actionable recommendations"
+
+  required_capabilities:
+    - web_search
+    - technical_analysis
+    - structured_report_writing
+
+  constraints:
+    - "Must cite sources for all claims with URLs"
+    - "Must clearly label speculation vs evidence-based conclusions"
+    - "Must include executive summary"
+    - "Must include feasibility assessment for each recommendation"
+    - "Must produce output within timeout"

@@ -1,0 +1,25 @@
+slot_type:
+  id: "implementer"
+  name: "Code Implementer"
+  category: "engineering"
+  description: "Writes production code and tests"
+  input_schema:
+    type: object
+    required:
+      - design_doc
+    properties:
+      design_doc:
+        type: string
+  output_schema:
+    type: object
+    required:
+      - delivery_yaml
+    properties:
+      delivery_yaml:
+        type: string
+  required_capabilities:
+    - python_development
+    - test_writing
+    - delivery_protocol
+  constraints:
+    - "Must follow integration contract"

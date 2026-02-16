@@ -1,0 +1,78 @@
+pipeline:
+  id: "standard-feature"
+  name: "{feature_name} Feature Pipeline"
+  version: "1.0.0"
+  description: "Standard feature pipeline for {feature_name}"
+  created_by: "ARCH-001"
+  created_at: "2026-01-01T00:00:00Z"
+
+  parameters:
+    - name: "feature_name"
+      type: "string"
+      description: "Name of the feature"
+      required: true
+    - name: "phase_id"
+      type: "string"
+      description: "Phase identifier"
+      default: "phase1"
+
+  slots:
+    - id: "slot-design"
+      slot_type: "designer"
+      name: "Design {feature_name}"
+      task:
+        objective: "Create design for {feature_name}"
+        context_files:
+          - "specs/integration-contract.md"
+        deliverables:
+          - "architect/designs/{feature_name}-design.md"
+      outputs:
+        - name: "design_doc"
+          type: "design_doc"
+          path: "architect/designs/{feature_name}-design.md"
+
+    - id: "slot-implement"
+      slot_type: "implementer"
+      name: "Implement {feature_name}"
+      depends_on:
+        - "slot-design"
+      inputs:
+        - name: "design"
+          from_slot: "slot-design"
+          artifact: "design_doc"
+      task:
+        objective: "Implement {feature_name} per design"
+      outputs:
+        - name: "delivery_yaml"
+          type: "delivery_yaml"
+          path: "engineer/DELIVERY.yaml"
+      pre_conditions:
+        - check: "Design completed"
+          type: "slot_completed"
+          target: "slot-design"
+      post_conditions:
+        - check: "Tests pass"
+          type: "tests_pass"
+          target: "engineer/tests/"
+      execution:
+        timeout_hours: 8.0
+        retry_on_fail: true
+        max_retries: 1
+
+    - id: "slot-review"
+      slot_type: "reviewer"
+      name: "Review {feature_name}"
+      depends_on:
+        - "slot-implement"
+      inputs:
+        - name: "delivery"
+          from_slot: "slot-implement"
+          artifact: "delivery_yaml"
+
+  data_flow:
+    - from_slot: "slot-design"
+      to_slot: "slot-implement"
+      artifact: "design_doc"
+    - from_slot: "slot-implement"
+      to_slot: "slot-review"
+      artifact: "delivery_yaml"

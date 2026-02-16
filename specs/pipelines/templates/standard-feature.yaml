@@ -1,0 +1,367 @@
+# Standard Feature Development Pipeline
+# Template: standard-feature
+# Version: 2.0.0 (slot-based)
+# Description: The baseline pipeline encoding our current workflow:
+#   Architect designs -> Engineer implements -> QA reviews -> CEO approves -> Deploy
+# This is the most common pipeline and serves as the base pattern.
+#
+# Migration from v1.0.0:
+#   - steps[] -> slots[] with slot_type instead of role/agent_prompt
+#   - Added explicit data_flow[] edges
+#   - Removed step-level type field (slot_type conveys this)
+
+pipeline:
+  id: "standard-feature"
+  name: "Standard Feature Development"
+  version: "2.0.0"
+  description: >
+    Standard development pipeline for new features and enhancements.
+    Architect designs the solution, Engineer implements with DELIVERY.yaml,
+    QA independently reviews with REVIEW.yaml, CEO approves, Engineer deploys.
+  created_by: "ARCH-001"
+  created_at: "2026-02-16T00:00:00Z"
+
+  parameters:
+    - name: "feature_name"
+      type: "string"
+      required: true
+      description: "Name of the feature being developed (kebab-case)"
+    - name: "phase_id"
+      type: "string"
+      required: true
+      description: "Phase identifier for directory naming (e.g., phase5)"
+    - name: "target_module"
+      type: "string"
+      default: ""
+      required: false
+      description: "Target module in engineer/src/ (e.g., strategy, risk)"
+
+  # ── Explicit Data Flow Edges ──────────────────────────────────────────────
+  data_flow:
+    - from_slot: "architect-design"
+      to_slot: "engineer-implement"
+      artifact: "design_doc"
+      required: true
+
+    - from_slot: "architect-design"
+      to_slot: "engineer-implement"
+      artifact: "contract_update"
+      required: true
+
+    - from_slot: "engineer-implement"
+      to_slot: "qa-review"
+      artifact: "delivery"
+      required: true
+
+    - from_slot: "engineer-implement"
+      to_slot: "qa-review"
+      artifact: "code"
+      required: true
+
+    - from_slot: "engineer-implement"
+      to_slot: "qa-review"
+      artifact: "tests"
+      required: true
+
+    - from_slot: "qa-review"
+      to_slot: "ceo-approve"
+      artifact: "review"
+      required: true
+
+    - from_slot: "ceo-approve"
+      to_slot: "deploy"
+      artifact: "approval"
+      required: true
+
+    - from_slot: "engineer-implement"
+      to_slot: "deploy"
+      artifact: "code"
+      required: true
+
+  # ── Slots ─────────────────────────────────────────────────────────────────
+  slots:
+    # ── Slot 1: Architecture Design ────────────────────────────────────────
+    - id: "architect-design"
+      slot_type: "designer"
+      name: "Architecture Design"
+
+      inputs:
+        - name: "requirements"
+          from_slot: "external"
+          artifact: "ceo_requirements"
+          required: true
+
+      outputs:
+        - name: "design_doc"
+          type: "design_doc"
+          path: "architect/{phase_id}/{feature_name}-design.md"
+          validation: "exists"
+        - name: "contract_update"
+          type: "config"
+          path: "architect/integration-contract.md"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Integration contract exists"
+          type: "file_exists"
+          target: "architect/integration-contract.md"
+
+      post_conditions:
+        - check: "Design document produced"
+          type: "file_exists"
+          target: "architect/{phase_id}/{feature_name}-design.md"
+
+      depends_on: []
+
+      task:
+        objective: "Design architecture for {feature_name}"
+        context_files:
+          - "architect/integration-contract.md"
+          - "architect/delivery-protocol.md"
+        deliverables:
+          - "Design document with module interfaces and data flow"
+          - "Updated integration contract (if new interfaces added)"
+        constraints:
+          - "Must reference existing integration-contract.md"
+          - "Must define pre/post conditions for new interfaces"
+          - "Must follow dependency direction rules (core <- modules <- app)"
+          - "Must not introduce new external dependencies without justification"
+        kpis:
+          - "All new interfaces have typed signatures"
+          - "Design is implementable within current VM constraints"
+
+      execution:
+        timeout_hours: 4.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # ── Slot 2: Engineering Implementation ─────────────────────────────────
+    - id: "engineer-implement"
+      slot_type: "implementer"
+      name: "Engineering Implementation"
+
+      inputs:
+        - name: "design_doc"
+          from_slot: "architect-design"
+          artifact: "design_doc"
+          required: true
+        - name: "contract"
+          from_slot: "architect-design"
+          artifact: "contract_update"
+          required: true
+
+      outputs:
+        - name: "code"
+          type: "code"
+          path: "engineer/src/"
+          validation: "exists"
+        - name: "tests"
+          type: "test_code"
+          path: "engineer/tests/"
+          validation: "exists"
+        - name: "delivery"
+          type: "delivery_yaml"
+          path: "engineer/DELIVERY.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "Design document available"
+          type: "artifact_valid"
+          target: "architect/{phase_id}/{feature_name}-design.md"
+        - check: "Integration contract available"
+          type: "file_exists"
+          target: "architect/integration-contract.md"
+
+      post_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+        - check: "All tests pass"
+          type: "tests_pass"
+          target: "engineer/tests/"
+
+      depends_on: ["architect-design"]
+
+      task:
+        objective: "Implement {feature_name} per architecture design"
+        context_files:
+          - "architect/integration-contract.md"
+          - "architect/{phase_id}/{feature_name}-design.md"
+          - "architect/delivery-protocol.md"
+        deliverables:
+          - "Source code in engineer/src/"
+          - "Tests in engineer/tests/"
+          - "DELIVERY.yaml with checksums and verification steps"
+        constraints:
+          - "Follow integration contract interfaces exactly"
+          - "Decimal for all monetary values"
+          - "Never bypass risk gateway"
+          - "All I/O must be async"
+          - "No blocking calls in event loop"
+        kpis:
+          - "Test coverage >= 85%"
+          - "0 test failures"
+          - "DELIVERY.yaml passes validate_delivery()"
+
+      execution:
+        timeout_hours: 8.0
+        retry_on_fail: true
+        max_retries: 2
+
+    # ── Slot 3: QA Review ──────────────────────────────────────────────────
+    - id: "qa-review"
+      slot_type: "reviewer"
+      name: "QA Independent Review"
+
+      inputs:
+        - name: "delivery"
+          from_slot: "engineer-implement"
+          artifact: "delivery"
+          required: true
+        - name: "code"
+          from_slot: "engineer-implement"
+          artifact: "code"
+          required: true
+        - name: "tests"
+          from_slot: "engineer-implement"
+          artifact: "tests"
+          required: true
+
+      outputs:
+        - name: "review"
+          type: "review_yaml"
+          path: "qa/{phase_id}/REVIEW.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+
+      post_conditions:
+        - check: "REVIEW.yaml exists and valid"
+          type: "review_valid"
+          target: "qa/{phase_id}/REVIEW.yaml"
+
+      depends_on: ["engineer-implement"]
+
+      task:
+        objective: "Independently verify engineer's delivery for {feature_name}"
+        context_files:
+          - "architect/delivery-protocol.md"
+          - "engineer/DELIVERY.yaml"
+        deliverables:
+          - "REVIEW.yaml with independent metrics and cross-validation"
+        constraints:
+          - "Run all tests independently (not trusting engineer's numbers)"
+          - "Compute checksums independently"
+          - "Follow verdict decision table strictly"
+          - "Cross-validate all metrics against DELIVERY.yaml claims"
+        kpis:
+          - "REVIEW.yaml passes validate_review()"
+          - "Independent test count matches engineer's claim"
+          - "Cross-validation suspicious == false"
+
+      execution:
+        timeout_hours: 4.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # ── Slot 4: CEO Approval ───────────────────────────────────────────────
+    - id: "ceo-approve"
+      slot_type: "approver"
+      name: "CEO Review and Approval"
+
+      inputs:
+        - name: "review"
+          from_slot: "qa-review"
+          artifact: "review"
+          required: true
+
+      outputs:
+        - name: "approval"
+          type: "approval"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "QA verdict is pass or conditional_pass"
+          type: "custom"
+          target: "yaml_field:qa/{phase_id}/REVIEW.yaml:verdict != fail"
+
+      post_conditions: []
+
+      depends_on: ["qa-review"]
+
+      task:
+        objective: "Review QA verdict and approve {feature_name} for deployment"
+        deliverables:
+          - "Go/No-Go decision"
+        constraints:
+          - "Check REVIEW.yaml verdict and issues"
+          - "Verify no P0/P1 blocking issues"
+          - "Verify cross-validation is clean"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: false
+
+    # ── Slot 5: Deployment ─────────────────────────────────────────────────
+    - id: "deploy"
+      slot_type: "deployer"
+      name: "Deploy to Trading VM"
+
+      inputs:
+        - name: "approval"
+          from_slot: "ceo-approve"
+          artifact: "approval"
+          required: true
+        - name: "code"
+          from_slot: "engineer-implement"
+          artifact: "code"
+          required: true
+
+      outputs:
+        - name: "deployment"
+          type: "deployment"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "CEO approved deployment"
+          type: "approval"
+          target: "ceo_deploy_approval"
+        - check: "PVE snapshot taken"
+          type: "custom"
+          target: "pve_snapshot_verified"
+
+      post_conditions:
+        - check: "Service running on VM"
+          type: "custom"
+          target: "command:ssh trading-vm systemctl is-active trading"
+        - check: "Smoke test passes"
+          type: "custom"
+          target: "post_deploy_smoke_test"
+
+      depends_on: ["ceo-approve"]
+
+      task:
+        objective: "Deploy {feature_name} to Trading VM (192.168.1.200)"
+        deliverables:
+          - "Code deployed via rsync"
+          - "Service restarted"
+          - "Smoke test results"
+        constraints:
+          - "Take PVE snapshot before deployment"
+          - "Verify nftables rules are intact"
+          - "Confirm paper trading mode if applicable"
+          - "Check log output for errors after restart"
+        kpis:
+          - "Zero downtime during deployment"
+          - "All smoke tests pass"
+          - "No error log entries in first 5 minutes"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: true
+        max_retries: 1

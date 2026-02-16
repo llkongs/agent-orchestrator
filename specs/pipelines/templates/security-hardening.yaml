@@ -1,0 +1,419 @@
+# Security Hardening Pipeline
+# Template: security-hardening
+# Version: 2.0.0 (slot-based)
+# Description: Security audit -> remediation design -> implementation -> QA -> re-audit -> approval
+#   Two-pass audit ensures all findings are resolved before deployment.
+#
+# Migration from v1.0.0:
+#   - steps[] -> slots[] with slot_type instead of role/agent_prompt
+#   - Added explicit data_flow[] edges
+#   - New slot_type "auditor" for security audit slots
+
+pipeline:
+  id: "security-hardening"
+  name: "Security Hardening"
+  version: "2.0.0"
+  description: >
+    Pipeline for security hardening. Security auditor identifies vulnerabilities,
+    Architect designs remediation, Engineer implements fixes, QA verifies,
+    Security re-audits to confirm all findings resolved, CEO approves.
+  created_by: "ARCH-001"
+  created_at: "2026-02-16T00:00:00Z"
+
+  parameters:
+    - name: "audit_scope"
+      type: "string"
+      default: "full"
+      required: false
+      description: "Scope of audit: full | vm-only | code-only | network-only"
+    - name: "phase_id"
+      type: "string"
+      default: "security"
+      required: false
+      description: "Phase identifier for directory naming"
+
+  # ── Explicit Data Flow Edges ──────────────────────────────────────────────
+  data_flow:
+    - from_slot: "security-audit"
+      to_slot: "architect-remediation"
+      artifact: "audit_report"
+      required: true
+
+    - from_slot: "security-audit"
+      to_slot: "architect-remediation"
+      artifact: "findings"
+      required: true
+
+    - from_slot: "architect-remediation"
+      to_slot: "engineer-fix"
+      artifact: "remediation_plan"
+      required: true
+
+    - from_slot: "security-audit"
+      to_slot: "engineer-fix"
+      artifact: "findings"
+      required: true
+
+    - from_slot: "engineer-fix"
+      to_slot: "qa-review"
+      artifact: "delivery"
+      required: true
+
+    - from_slot: "engineer-fix"
+      to_slot: "qa-review"
+      artifact: "code"
+      required: true
+
+    - from_slot: "qa-review"
+      to_slot: "security-reaudit"
+      artifact: "review"
+      required: true
+
+    - from_slot: "engineer-fix"
+      to_slot: "security-reaudit"
+      artifact: "code"
+      required: true
+
+    - from_slot: "security-audit"
+      to_slot: "security-reaudit"
+      artifact: "findings"
+      required: true
+
+    - from_slot: "security-reaudit"
+      to_slot: "ceo-approve"
+      artifact: "reaudit_report"
+      required: true
+
+    - from_slot: "qa-review"
+      to_slot: "ceo-approve"
+      artifact: "review"
+      required: true
+
+  # ── Slots ─────────────────────────────────────────────────────────────────
+  slots:
+    # ── Slot 1: Initial Security Audit ─────────────────────────────────────
+    - id: "security-audit"
+      slot_type: "auditor"
+      name: "Security Audit"
+
+      inputs:
+        - name: "codebase"
+          from_slot: "external"
+          artifact: "current_codebase"
+          required: true
+
+      outputs:
+        - name: "audit_report"
+          type: "audit_report"
+          path: "security-audit/audit-{audit_scope}.md"
+          validation: "exists"
+        - name: "findings"
+          type: "config"
+          path: "security-audit/findings-{audit_scope}.yaml"
+          validation: "exists"
+
+      pre_conditions: []
+
+      post_conditions:
+        - check: "Audit report produced"
+          type: "file_exists"
+          target: "security-audit/audit-{audit_scope}.md"
+        - check: "Structured findings produced"
+          type: "file_exists"
+          target: "security-audit/findings-{audit_scope}.yaml"
+
+      depends_on: []
+
+      task:
+        objective: "Audit system security with {audit_scope} scope"
+        context_files:
+          - "architect/integration-contract.md"
+        deliverables:
+          - "Audit report with categorized findings"
+          - "Structured findings YAML (severity, category, location, recommendation)"
+        constraints:
+          - "Follow OWASP top 10 for code review"
+          - "Check all prohibited actions compliance (Red Lines RL-01 through RL-10)"
+          - "Verify API key permission scope"
+          - "Check nftables rules"
+          - "Audit systemd sandboxing"
+        kpis:
+          - "All components within audit scope covered"
+          - "Findings prioritized by severity (CRITICAL, HIGH, MEDIUM, LOW)"
+          - "Each finding has actionable remediation recommendation"
+
+      execution:
+        timeout_hours: 6.0
+
+    # ── Slot 2: Remediation Design ─────────────────────────────────────────
+    - id: "architect-remediation"
+      slot_type: "designer"
+      name: "Remediation Design"
+
+      inputs:
+        - name: "audit_report"
+          from_slot: "security-audit"
+          artifact: "audit_report"
+          required: true
+        - name: "findings"
+          from_slot: "security-audit"
+          artifact: "findings"
+          required: true
+
+      outputs:
+        - name: "remediation_plan"
+          type: "design_doc"
+          path: "architect/{phase_id}/remediation-plan.md"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Audit report available"
+          type: "artifact_valid"
+          target: "security-audit/audit-{audit_scope}.md"
+
+      post_conditions:
+        - check: "Remediation plan produced"
+          type: "file_exists"
+          target: "architect/{phase_id}/remediation-plan.md"
+
+      depends_on: ["security-audit"]
+
+      task:
+        objective: "Design remediation plan for security findings"
+        context_files:
+          - "security-audit/audit-{audit_scope}.md"
+          - "security-audit/findings-{audit_scope}.yaml"
+          - "architect/integration-contract.md"
+        deliverables:
+          - "Remediation plan with fix specifications for each finding"
+        constraints:
+          - "Must address all CRITICAL and HIGH findings"
+          - "Fixes must not break existing interfaces"
+          - "Must maintain backward compatibility"
+        kpis:
+          - "All CRITICAL findings have fix design"
+          - "All HIGH findings have fix design"
+          - "Fix designs are implementable without architecture changes"
+
+      execution:
+        timeout_hours: 4.0
+
+    # ── Slot 3: Implement Security Fixes ───────────────────────────────────
+    - id: "engineer-fix"
+      slot_type: "implementer"
+      name: "Implement Security Fixes"
+
+      inputs:
+        - name: "remediation_plan"
+          from_slot: "architect-remediation"
+          artifact: "remediation_plan"
+          required: true
+        - name: "findings"
+          from_slot: "security-audit"
+          artifact: "findings"
+          required: true
+
+      outputs:
+        - name: "code"
+          type: "code"
+          path: "engineer/src/"
+          validation: "exists"
+        - name: "tests"
+          type: "test_code"
+          path: "engineer/tests/"
+          validation: "exists"
+        - name: "delivery"
+          type: "delivery_yaml"
+          path: "engineer/DELIVERY.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "Remediation plan available"
+          type: "artifact_valid"
+          target: "architect/{phase_id}/remediation-plan.md"
+        - check: "Integration contract available"
+          type: "file_exists"
+          target: "architect/integration-contract.md"
+
+      post_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+        - check: "All tests pass"
+          type: "tests_pass"
+          target: "engineer/tests/"
+
+      depends_on: ["architect-remediation"]
+
+      task:
+        objective: "Implement security fixes per remediation plan"
+        context_files:
+          - "architect/{phase_id}/remediation-plan.md"
+          - "security-audit/findings-{audit_scope}.yaml"
+          - "architect/integration-contract.md"
+          - "architect/delivery-protocol.md"
+        deliverables:
+          - "Fixed source code"
+          - "Tests covering security fixes"
+          - "DELIVERY.yaml with verification steps"
+        constraints:
+          - "Do not break existing functionality"
+          - "Follow integration contract interfaces"
+          - "Each finding fix must be independently testable"
+        kpis:
+          - "All CRITICAL fixes implemented"
+          - "All HIGH fixes implemented"
+          - "Test coverage >= 85%"
+          - "0 test failures"
+
+      execution:
+        timeout_hours: 8.0
+        retry_on_fail: true
+        max_retries: 2
+
+    # ── Slot 4: QA Review ──────────────────────────────────────────────────
+    - id: "qa-review"
+      slot_type: "reviewer"
+      name: "QA Review"
+
+      inputs:
+        - name: "delivery"
+          from_slot: "engineer-fix"
+          artifact: "delivery"
+          required: true
+        - name: "code"
+          from_slot: "engineer-fix"
+          artifact: "code"
+          required: true
+
+      outputs:
+        - name: "review"
+          type: "review_yaml"
+          path: "qa/{phase_id}/REVIEW.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+
+      post_conditions:
+        - check: "REVIEW.yaml exists and valid"
+          type: "review_valid"
+          target: "qa/{phase_id}/REVIEW.yaml"
+
+      depends_on: ["engineer-fix"]
+
+      task:
+        objective: "Verify security fixes do not break functionality"
+        context_files:
+          - "architect/delivery-protocol.md"
+          - "engineer/DELIVERY.yaml"
+        deliverables:
+          - "REVIEW.yaml with independent metrics and cross-validation"
+        constraints:
+          - "Run all tests independently"
+          - "Specifically test that existing functionality is preserved"
+          - "Cross-validate metrics"
+        kpis:
+          - "REVIEW.yaml passes validate_review()"
+          - "No regression in existing test suite"
+
+      execution:
+        timeout_hours: 4.0
+
+    # ── Slot 5: Security Re-Audit ──────────────────────────────────────────
+    - id: "security-reaudit"
+      slot_type: "auditor"
+      name: "Security Re-Audit"
+
+      inputs:
+        - name: "review"
+          from_slot: "qa-review"
+          artifact: "review"
+          required: true
+        - name: "code"
+          from_slot: "engineer-fix"
+          artifact: "code"
+          required: true
+        - name: "original_findings"
+          from_slot: "security-audit"
+          artifact: "findings"
+          required: true
+
+      outputs:
+        - name: "reaudit_report"
+          type: "audit_report"
+          path: "security-audit/reaudit-{audit_scope}.md"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "QA review completed"
+          type: "slot_completed"
+          target: "qa-review"
+
+      post_conditions:
+        - check: "Re-audit report produced"
+          type: "file_exists"
+          target: "security-audit/reaudit-{audit_scope}.md"
+
+      depends_on: ["qa-review"]
+
+      task:
+        objective: "Verify all original security findings are resolved"
+        context_files:
+          - "security-audit/findings-{audit_scope}.yaml"
+          - "security-audit/audit-{audit_scope}.md"
+        deliverables:
+          - "Re-audit report confirming each finding's resolution status"
+        constraints:
+          - "Check each original finding individually"
+          - "Verify fix completeness, not just absence"
+        kpis:
+          - "0 CRITICAL findings remaining"
+          - "0 HIGH findings remaining"
+
+      execution:
+        timeout_hours: 4.0
+
+    # ── Slot 6: CEO Approval ───────────────────────────────────────────────
+    - id: "ceo-approve"
+      slot_type: "approver"
+      name: "CEO Approval"
+
+      inputs:
+        - name: "reaudit_report"
+          from_slot: "security-reaudit"
+          artifact: "reaudit_report"
+          required: true
+        - name: "review"
+          from_slot: "qa-review"
+          artifact: "review"
+          required: true
+
+      outputs:
+        - name: "approval"
+          type: "approval"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "Re-audit confirms 0 CRITICAL/HIGH"
+          type: "custom"
+          target: "security-audit/reaudit-{audit_scope}.md"
+
+      post_conditions: []
+
+      depends_on: ["security-reaudit"]
+
+      task:
+        objective: "Approve security hardening for deployment"
+        deliverables:
+          - "Go/No-Go decision"
+        constraints:
+          - "Verify 0 CRITICAL/HIGH remaining in re-audit"
+          - "Verify QA review verdict is acceptable"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: false

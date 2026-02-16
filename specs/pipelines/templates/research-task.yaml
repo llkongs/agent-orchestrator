@@ -1,0 +1,189 @@
+# Research Task Pipeline
+# Template: research-task
+# Version: 2.0.0 (slot-based)
+# Description: Lightweight pipeline for research tasks that produce analysis, not code.
+#   Researcher investigates -> Architect reviews feasibility -> CEO decides
+#
+# Migration from v1.0.0:
+#   - steps[] -> slots[] with slot_type instead of role/agent_prompt
+#   - Added explicit data_flow[] edges
+#   - Removed researcher_role/researcher_prompt parameters (slot binding is external)
+
+pipeline:
+  id: "research-task"
+  name: "Research Task"
+  version: "2.0.0"
+  description: >
+    Lightweight pipeline for research and investigation tasks. A researcher
+    conducts the study, Architect reviews for architecture compatibility and
+    feasibility, CEO makes a Go/No-Go decision on recommendations.
+    No code is produced -- output is research reports and recommendations.
+  created_by: "ARCH-001"
+  created_at: "2026-02-16T00:00:00Z"
+
+  parameters:
+    - name: "research_topic"
+      type: "string"
+      required: true
+      description: "Topic to research (kebab-case for file naming)"
+    - name: "research_brief"
+      type: "string"
+      required: true
+      description: "Detailed description of what to research and why"
+
+  # ── Explicit Data Flow Edges ──────────────────────────────────────────────
+  data_flow:
+    - from_slot: "research"
+      to_slot: "architect-review"
+      artifact: "research_report"
+      required: true
+
+    - from_slot: "research"
+      to_slot: "ceo-decision"
+      artifact: "research_report"
+      required: true
+
+    - from_slot: "architect-review"
+      to_slot: "ceo-decision"
+      artifact: "review_notes"
+      required: true
+
+  # ── Slots ─────────────────────────────────────────────────────────────────
+  slots:
+    # ── Slot 1: Conduct Research ───────────────────────────────────────────
+    - id: "research"
+      slot_type: "researcher"
+      name: "Conduct Research"
+
+      inputs:
+        - name: "research_brief"
+          from_slot: "external"
+          artifact: "ceo_research_brief"
+          required: true
+
+      outputs:
+        - name: "research_report"
+          type: "research"
+          path: "architect/research/{research_topic}-research.md"
+          validation: "exists"
+
+      pre_conditions: []
+
+      post_conditions:
+        - check: "Research report produced"
+          type: "file_exists"
+          target: "architect/research/{research_topic}-research.md"
+
+      depends_on: []
+
+      task:
+        objective: "Research {research_topic}: {research_brief}"
+        deliverables:
+          - "Research report with findings, analysis, and recommendations"
+        constraints:
+          - "Cite all sources with URLs"
+          - "Clearly label speculation vs evidence-based conclusions"
+          - "Include feasibility assessment for each recommendation"
+          - "Include confidence level for each finding"
+        kpis:
+          - ">= 10 sources cited"
+          - "Executive summary included"
+          - "Feasibility assessment for each recommendation"
+          - "Comparison matrix of alternatives"
+
+      execution:
+        timeout_hours: 6.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # ── Slot 2: Architect Feasibility Review ───────────────────────────────
+    - id: "architect-review"
+      slot_type: "designer"
+      name: "Architect Feasibility Review"
+
+      inputs:
+        - name: "research_report"
+          from_slot: "research"
+          artifact: "research_report"
+          required: true
+
+      outputs:
+        - name: "review_notes"
+          type: "design_doc"
+          path: "architect/research/{research_topic}-review.md"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Research report available"
+          type: "artifact_valid"
+          target: "architect/research/{research_topic}-research.md"
+
+      post_conditions:
+        - check: "Review notes produced"
+          type: "file_exists"
+          target: "architect/research/{research_topic}-review.md"
+
+      depends_on: ["research"]
+
+      task:
+        objective: "Review {research_topic} research for architecture compatibility and implementation feasibility"
+        context_files:
+          - "architect/research/{research_topic}-research.md"
+          - "architect/integration-contract.md"
+        deliverables:
+          - "Review notes with feasibility assessment for each recommendation"
+        constraints:
+          - "Focus on implementation feasibility, not research methodology"
+          - "Assess compatibility with existing system architecture"
+          - "Estimate implementation effort for recommended approaches"
+          - "Flag any recommendations that would require architecture changes"
+        kpis:
+          - "All recommendations assessed for compatibility"
+          - "Implementation effort estimated for top recommendations"
+          - "Architecture risks identified"
+
+      execution:
+        timeout_hours: 3.0
+
+    # ── Slot 3: CEO Decision ───────────────────────────────────────────────
+    - id: "ceo-decision"
+      slot_type: "approver"
+      name: "CEO Decision"
+
+      inputs:
+        - name: "research_report"
+          from_slot: "research"
+          artifact: "research_report"
+          required: true
+        - name: "review_notes"
+          from_slot: "architect-review"
+          artifact: "review_notes"
+          required: true
+
+      outputs:
+        - name: "decision"
+          type: "approval"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "Architect review available"
+          type: "slot_completed"
+          target: "architect-review"
+
+      post_conditions: []
+
+      depends_on: ["architect-review"]
+
+      task:
+        objective: "Decide on research recommendations for {research_topic}"
+        deliverables:
+          - "Go/No-Go decision on each recommendation"
+          - "If Go: which pipeline template to use for implementation"
+        constraints:
+          - "Review executive summary and architect feasibility notes"
+          - "Consider implementation effort vs expected benefit"
+
+      execution:
+        timeout_hours: 4.0
+        retry_on_fail: false

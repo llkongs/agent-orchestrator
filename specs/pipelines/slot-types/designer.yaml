@@ -1,0 +1,65 @@
+# SlotType: designer
+# Category: architecture
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "designer"
+  name: "Architecture Designer"
+  category: "architecture"
+  description: >
+    Produces design documents, defines module interfaces, scopes system
+    constraints, and updates the integration contract. Does NOT write
+    implementation code.
+
+  input_schema:
+    type: object
+    required:
+      - requirements
+    properties:
+      requirements:
+        type: string
+        description: "Path to requirements document or CEO directive text"
+      existing_contract:
+        type: string
+        description: "Path to current integration-contract.md"
+      context_artifacts:
+        type: array
+        items:
+          type: string
+        description: "Paths to additional context files (research reports, prior designs)"
+
+  output_schema:
+    type: object
+    required:
+      - design_doc
+    properties:
+      design_doc:
+        type: string
+        description: "Path to the produced design document (.md)"
+      interface_changes:
+        type: array
+        items:
+          type: string
+        description: "List of new or modified interface names"
+      contract_updated:
+        type: boolean
+        description: "Whether integration-contract.md was updated"
+      diagrams:
+        type: array
+        items:
+          type: string
+        description: "Paths to architecture diagrams produced"
+
+  required_capabilities:
+    - system_design
+    - interface_definition
+    - technical_documentation
+
+  constraints:
+    - "Must reference existing integration-contract.md"
+    - "Must define typed signatures for all new interfaces"
+    - "Must include dependency diagram (ASCII or Mermaid)"
+    - "Must NOT write implementation code"
+    - "Must produce output within timeout"

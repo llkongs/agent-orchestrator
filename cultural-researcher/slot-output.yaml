@@ -1,0 +1,27 @@
+# Slot Output: CER-001 (Cultural Entertainment Researcher)
+# Pipeline: WP-4.1 Spring Festival Gala Mini-Game
+# Slot Type: researcher
+# Date: 2026-02-16
+
+research_report: "cultural-researcher/spring-festival-gala-mini-game-research.md"
+
+confidence_level: "medium"
+# Note: "medium-high" is not in the enum; using "medium" as the closest valid value.
+# Confidence is strong for viewership data and competitive analysis,
+# weaker for granular demographics (55+ age group) and post-event retention metrics.
+
+key_findings:
+  - "Chunwan interactive engagement evolved through 4 eras: shake-to-win (2015), card collection (2016+), short-video integration (2020-2024), and AI-powered experiences (2025-2026), each with order-of-magnitude participation increases."
+  - "51.59% of 2024 Chunwan viewers are aged 15-44; mobile viewership grew 52.46% YoY in 2025; but TV still commands 78.88% share, confirming a dual-screen family viewing context."
+  - "The 'simple entry + social sharing + real rewards' formula drives highest engagement; pure cash incentives without game loops fail (Baidu 2019: 2% retention)."
+  - "2026 marks the 'AI Spring Festival' inflection point with Doubao, Yuanbao, Wenxin, and Ant Afu competing via AI-powered interactions."
+  - "Taobao's 2025 Chunwan mini-game achieved 30 FPS on low-end devices and 1.74s first-screen load, proving mass-scale mini-game technical feasibility."
+
+sources_cited: 27
+
+recommendations:
+  - "Design a 'Family Living Room' cooperative game with differentiated roles for 3 generations (grandparent easy role, youth complex role) -- the biggest unoccupied design space."
+  - "Implement a collectible + instant reward dual loop combining Alipay-style long-arc collection with immediate per-interaction rewards."
+  - "Use AI for personalization (generated content, adaptive difficulty) rather than as a gating mechanic that excludes elderly users."
+  - "Build for the full 7-day Spring Festival holiday period with daily evolving content, not just a single New Year's Eve spike."
+  - "Synchronize game moments with the live broadcast timeline to create FOMO-driven engagement tied to the TV experience."

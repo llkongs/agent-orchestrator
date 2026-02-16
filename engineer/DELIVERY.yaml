@@ -1,0 +1,472 @@
+version: "1.1"
+agent_id: "ENG-001"
+agent_name: "engineer"
+task_id: "pipeline-engine-all-phases"
+timestamp: "2026-02-16T10:15:00Z"
+status: "complete"
+
+deliverables:
+  # === Source modules (Phase 1) ===
+  - path: "engineer/src/pipeline/__init__.py"
+    type: "source"
+    description: "Public API re-exporting all 33 symbols from 8 modules"
+    checksum: "sha256:d5a183aed85a8caa2e7eeb4d7348ee3626bb0586fc262d352b34404abd76fbd6"
+    loc: 94
+    language: "python"
+
+  - path: "engineer/src/pipeline/models.py"
+    type: "source"
+    description: "All data models: 5 enums, 14 dataclasses (frozen + mutable), state + slot system types"
+    checksum: "sha256:745a53ddbf8b1fc68713ab4929a1afa6f028ac0832618f360b6770fc071f0f64"
+    loc: 292
+    language: "python"
+    implements: "specs/integration-contract.md#section-2"
+
+  - path: "engineer/src/pipeline/loader.py"
+    type: "source"
+    description: "YAML pipeline loader with parameter resolution and type coercion"
+    checksum: "sha256:7f30b57405dc97db67213fb48126f51a70d743a5ddde0503776c9072e9a88822"
+    loc: 357
+    language: "python"
+    implements: "specs/integration-contract.md#section-3"
+
+  - path: "engineer/src/pipeline/validator.py"
+    type: "source"
+    description: "Pipeline DAG validator with Kahn's algorithm, cycle detection, IO compatibility"
+    checksum: "sha256:a2a5cf9c1313049b377cdc84af33252f3a1652cc6824796cac2139e56ba51255"
+    loc: 261
+    language: "python"
+    implements: "specs/integration-contract.md#section-4"
+
+  - path: "engineer/src/pipeline/state.py"
+    type: "source"
+    description: "Pipeline state tracker with atomic YAML persistence and archive"
+    checksum: "sha256:4203c087cff3462e779e5fba2346f70ae070804ec48aa7aac5a35924df5b63cd"
+    loc: 381
+    language: "python"
+    implements: "specs/integration-contract.md#section-5"
+
+  - path: "engineer/src/pipeline/slot_registry.py"
+    type: "source"
+    description: "Slot type registry with agent capability matching and manifest generation"
+    checksum: "sha256:9f3f29a22ed649a49eed2b6dcedc4930f56c8e75cfffe3d3b75709de0c80b407"
+    loc: 279
+    language: "python"
+    implements: "specs/integration-contract.md#section-6"
+
+  - path: "engineer/src/pipeline/gate_checker.py"
+    type: "source"
+    description: "Pre/post-condition gate evaluator for file_exists, slot_completed, delivery_valid, review_valid, tests_pass, custom"
+    checksum: "sha256:f25826938a562ef633d06a9812ca870dbccfc25cd3084b67aa959ab81a3f06de"
+    loc: 459
+    language: "python"
+    implements: "specs/integration-contract.md#section-7"
+
+  # === Source modules (Phase 2) ===
+  - path: "engineer/src/pipeline/runner.py"
+    type: "source"
+    description: "Pipeline orchestration engine: prepare, begin/complete/fail/skip slot, resume, summary"
+    checksum: "sha256:2504d99a4cbcaad114c06e52e81cc8bafd3e5a6147d7b28b94b7706d1d94ad70"
+    loc: 343
+    language: "python"
+    implements: "specs/integration-contract.md#section-8"
+
+  - path: "engineer/src/pipeline/nl_matcher.py"
+    type: "source"
+    description: "Natural language template matcher with English/Chinese keyword scoring and regex param extraction"
+    checksum: "sha256:7e8fdf1795603614b5de67820f58f3137dfa49f8181093d2f2659e74529e26bc"
+    loc: 305
+    language: "python"
+    implements: "specs/integration-contract.md#section-9"
+
+  # === Test modules ===
+  - path: "engineer/tests/test_pipeline/conftest.py"
+    type: "test"
+    description: "Shared pytest fixtures: sample_slot, sample_pipeline, sample_pipeline_state, project_root"
+    checksum: "sha256:cb2b8822af018a47c5781aa07405ec84148df9451e9e7ebbc2f0bd4451197b33"
+    loc: 110
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_models.py"
+    type: "test"
+    description: "55 tests for all enums and dataclasses in models.py"
+    checksum: "sha256:67771ae001e43e61c580fe1a67fdea6f26035f4e3554c77b69c29569c136d4ca"
+    loc: 521
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_loader.py"
+    type: "test"
+    description: "23 tests for YAML loading, parameter resolution, type coercion"
+    checksum: "sha256:560e98e5053fc7b66d59fbe6ceb4facfda34877047e0b3f952018ef140777351"
+    loc: 201
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_validator.py"
+    type: "test"
+    description: "21 tests for DAG validation, cycle detection, topological sort, IO compatibility"
+    checksum: "sha256:fe35136268f1a681d256ee5bc3885c7ec470a58f467a66cd73518d392d828a06"
+    loc: 243
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_state.py"
+    type: "test"
+    description: "26 tests for state tracking, slot updates, ready slots, save/load, archive"
+    checksum: "sha256:7db377d15b0cd8159964157dd385f3a2662932659eeaaaa5703e2a6333729454"
+    loc: 244
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_slot_registry.py"
+    type: "test"
+    description: "22 tests for slot type loading, agent capability parsing, matching, manifest"
+    checksum: "sha256:fed181604132459c0fae9acf5c6f7311de1b0c77d38d93528da517b86228eeb0"
+    loc: 214
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_gate_checker.py"
+    type: "test"
+    description: "60 tests for all gate types, dispatch, YAML field evaluation, command execution, compare"
+    checksum: "sha256:252e5f2bdbe796d24383fb0099a4f1b238f6c6d65c8956fe1d1ae3f85e9079e7"
+    loc: 561
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_runner.py"
+    type: "test"
+    description: "22 tests for pipeline lifecycle: prepare, begin/complete/fail/skip slot, resume, summary"
+    checksum: "sha256:04f382d52e38186c1708c1f970df0060432871038b5b5c52cb43e65e6250917b"
+    loc: 460
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_nl_matcher.py"
+    type: "test"
+    description: "31 tests for template matching (EN + CN), param extraction, summary generation"
+    checksum: "sha256:55d1a5d2556a1b487fb3529ad6b89588c9accb89da25d5093bc962181ab833f1"
+    loc: 334
+    language: "python"
+
+  - path: "engineer/tests/test_pipeline/test_init.py"
+    type: "test"
+    description: "10 tests verifying all 33 symbols exported from pipeline.__init__"
+    checksum: "sha256:5df8aef92733e3e19d805eb54d09fc169673a3c4aef96b3f76cd5c37bf085174"
+    loc: 79
+    language: "python"
+
+  # === Test fixtures ===
+  - path: "engineer/tests/test_pipeline/fixtures/valid-pipeline.yaml"
+    type: "config"
+    description: "3-slot pipeline fixture with parameters, data_flow, conditions"
+    checksum: "sha256:d6e30e7f80076ebd4a2d37ac89606a01eee7e286fe036d0ae87dfd48859c4a1f"
+    loc: 78
+    language: "yaml"
+
+  - path: "engineer/tests/test_pipeline/fixtures/bare-pipeline.yaml"
+    type: "config"
+    description: "Pipeline without wrapper key for bare-format loading test"
+    checksum: "sha256:569e5febbf334459969e2240d61ea14cf98913d0b5e746205570b0b99fe67fe6"
+    loc: 14
+    language: "yaml"
+
+  - path: "engineer/tests/test_pipeline/fixtures/invalid-cycle.yaml"
+    type: "config"
+    description: "Cyclic dependency pipeline for cycle detection test"
+    checksum: "sha256:769292b429f4b9e8c50089abc2c4198c053e6694470b49de822c61ec8309e120"
+    loc: 17
+    language: "yaml"
+
+  - path: "engineer/tests/test_pipeline/fixtures/invalid-io.yaml"
+    type: "config"
+    description: "Invalid IO pipeline for data flow validation test"
+    checksum: "sha256:d3524afb83755bf5fd2173998acb888b0a7abdd139a142e4434546f881f915a4"
+    loc: 24
+    language: "yaml"
+
+  - path: "engineer/tests/test_pipeline/fixtures/sample-slot-type.yaml"
+    type: "config"
+    description: "Implementer slot type definition for registry tests"
+    checksum: "sha256:44b6f2f1054ee8071a08c46c58536c0a920ae7cf1bc52c41a962691019f4e7c9"
+    loc: 25
+    language: "yaml"
+
+  - path: "engineer/tests/test_pipeline/fixtures/sample-slot-type-designer.yaml"
+    type: "config"
+    description: "Designer slot type definition for registry tests"
+    checksum: "sha256:19d2c57bc0a138cd736030199fb7b6539f95bbec82007e393fc717252ba30a3e"
+    loc: 17
+    language: "yaml"
+
+  - path: "engineer/tests/test_pipeline/fixtures/sample-agent.md"
+    type: "config"
+    description: "ENG-001 agent mock with YAML front-matter for registry tests"
+    checksum: "sha256:d19a1c25b66dfb306f30ef611a7db62ad1dc458d19a87a5f7a376840c9cc5324"
+    loc: 15
+    language: "markdown"
+
+  - path: "engineer/tests/test_pipeline/fixtures/sample-agent-2.md"
+    type: "config"
+    description: "ARCH-001 agent mock with YAML front-matter for registry tests"
+    checksum: "sha256:6b20d133e2ee91348ddbc51d03822c83933ce11045e85d461f915e2915eab5d6"
+    loc: 14
+    language: "markdown"
+
+exports:
+  # models.py
+  - name: "SlotStatus"
+    type: "enum"
+    module: "pipeline.models"
+    description: "10-value StrEnum for slot runtime status"
+  - name: "PipelineStatus"
+    type: "enum"
+    module: "pipeline.models"
+    description: "7-value StrEnum for pipeline runtime status"
+  - name: "ArtifactType"
+    type: "enum"
+    module: "pipeline.models"
+    description: "12-value StrEnum for artifact classification"
+  - name: "ConditionType"
+    type: "enum"
+    module: "pipeline.models"
+    description: "8-value StrEnum for gate condition types"
+  - name: "ValidationLevel"
+    type: "enum"
+    module: "pipeline.models"
+    description: "4-value StrEnum for artifact validation strictness"
+  - name: "Parameter"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen dataclass for user-supplied pipeline parameters"
+  - name: "ArtifactRef"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen dataclass for input artifact references"
+  - name: "ArtifactOutput"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen dataclass for output artifact declarations"
+  - name: "Gate"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen dataclass for pre/post-conditions"
+  - name: "DataFlowEdge"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen dataclass for DAG edges"
+  - name: "GateCheckResult"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen dataclass for gate evaluation results"
+  - name: "SlotTask"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Mutable dataclass for slot task specification"
+  - name: "ExecutionConfig"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Mutable dataclass for slot execution constraints"
+  - name: "Slot"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Mutable dataclass for pipeline slot definition"
+  - name: "Pipeline"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Top-level mutable pipeline definition"
+  - name: "SlotState"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Mutable runtime state for a single slot"
+  - name: "PipelineState"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Mutable runtime state for an entire pipeline"
+  - name: "SlotTypeDefinition"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen slot type interface contract loaded from YAML"
+  - name: "AgentCapabilities"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen agent capability metadata from front-matter"
+  - name: "CapabilityMatch"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Frozen result of agent-to-slot-type matching"
+  - name: "SlotAssignment"
+    type: "dataclass"
+    module: "pipeline.models"
+    description: "Mutable slot-to-agent assignment mapping"
+  # loader.py
+  - name: "PipelineLoader"
+    type: "interface_impl"
+    module: "pipeline.loader"
+    description: "YAML pipeline loader with parameter resolution"
+  - name: "PipelineLoadError"
+    type: "function"
+    module: "pipeline.loader"
+    description: "Exception for pipeline loading failures"
+  - name: "PipelineParameterError"
+    type: "function"
+    module: "pipeline.loader"
+    description: "Exception for parameter resolution failures"
+  # validator.py
+  - name: "PipelineValidator"
+    type: "interface_impl"
+    module: "pipeline.validator"
+    description: "DAG validator with Kahn's algorithm and IO compatibility"
+  - name: "ValidationResult"
+    type: "dataclass"
+    module: "pipeline.validator"
+    description: "Named tuple for validation results (valid, errors, warnings)"
+  - name: "PipelineCycleError"
+    type: "function"
+    module: "pipeline.validator"
+    description: "Exception raised when cycle detected in pipeline DAG"
+  # state.py
+  - name: "PipelineStateTracker"
+    type: "interface_impl"
+    module: "pipeline.state"
+    description: "State tracker with atomic YAML persistence and archive"
+  # slot_registry.py
+  - name: "SlotRegistry"
+    type: "interface_impl"
+    module: "pipeline.slot_registry"
+    description: "Slot type registry with capability matching and manifest generation"
+  - name: "SlotTypeNotFoundError"
+    type: "function"
+    module: "pipeline.slot_registry"
+    description: "Exception when requested slot type not found"
+  - name: "SlotManifest"
+    type: "dataclass"
+    module: "pipeline.slot_registry"
+    description: "Summary of pipeline slots and required capabilities for HR"
+  # gate_checker.py
+  - name: "GateChecker"
+    type: "interface_impl"
+    module: "pipeline.gate_checker"
+    description: "Pre/post-condition evaluator for all gate types"
+  # runner.py
+  - name: "PipelineRunner"
+    type: "interface_impl"
+    module: "pipeline.runner"
+    description: "Top-level pipeline orchestration engine"
+  - name: "PipelineExecutionError"
+    type: "function"
+    module: "pipeline.runner"
+    description: "Exception for unrecoverable pipeline execution errors"
+  # nl_matcher.py
+  - name: "NLMatcher"
+    type: "interface_impl"
+    module: "pipeline.nl_matcher"
+    description: "Natural language template matcher (English + Chinese)"
+  - name: "TemplateMatch"
+    type: "dataclass"
+    module: "pipeline.nl_matcher"
+    description: "Frozen result of matching NL input to a template"
+
+dependencies:
+  - agent: "ARCH-001"
+    file: "architect/architecture.md"
+    usage: "System architecture, module decomposition, ADRs"
+  - agent: "ARCH-001"
+    file: "specs/integration-contract.md"
+    usage: "Exact interface contracts for all 9 modules"
+  - agent: "ARCH-001"
+    file: "specs/pipelines/implementation-guide.md"
+    usage: "Module-by-module implementation specs (supplementary)"
+
+test_results:
+  runner: "pytest"
+  command: "cd engineer && PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing"
+  total: 270
+  passed: 270
+  failed: 0
+  skipped: 0
+  errors: 0
+  coverage_pct: 97.0
+  coverage_by_module:
+    - module: "pipeline.__init__"
+      stmts: 9
+      coverage_pct: 100.0
+    - module: "pipeline.models"
+      stmts: 175
+      coverage_pct: 100.0
+    - module: "pipeline.loader"
+      stmts: 127
+      coverage_pct: 95.0
+    - module: "pipeline.validator"
+      stmts: 123
+      coverage_pct: 100.0
+    - module: "pipeline.state"
+      stmts: 152
+      coverage_pct: 94.0
+    - module: "pipeline.slot_registry"
+      stmts: 106
+      coverage_pct: 92.0
+    - module: "pipeline.gate_checker"
+      stmts: 184
+      coverage_pct: 96.0
+    - module: "pipeline.runner"
+      stmts: 93
+      coverage_pct: 99.0
+    - module: "pipeline.nl_matcher"
+      stmts: 96
+      coverage_pct: 96.0
+
+quality_checks:
+  - check: "All tests pass"
+    command: "PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v"
+    result: "pass"
+    details: "270 passed in 2.15s"
+  - check: "Coverage above targets for all modules"
+    result: "pass"
+    details: "Minimum module coverage: 92% (slot_registry), overall 97%"
+  - check: "No subprocess shell=True"
+    result: "pass"
+    details: "gate_checker.py uses shlex.split + subprocess.run with shell=False"
+  - check: "All dataclasses follow frozen/mutable contract"
+    result: "pass"
+    details: "Frozen: Parameter, ArtifactRef, ArtifactOutput, Gate, DataFlowEdge, GateCheckResult, SlotTypeDefinition, AgentCapabilities, CapabilityMatch, TemplateMatch; Mutable: rest"
+  - check: "Ruff lint clean"
+    command: "python3 -m ruff check src/pipeline/"
+    result: "pass"
+    details: "All checks passed, 0 errors"
+  - check: "All interfaces match integration contract"
+    result: "pass"
+    details: "All 9 modules implement exact method signatures from specs/integration-contract.md (2 minor deviations documented in KI-004, KI-005)"
+
+known_issues:
+  - id: "KI-001"
+    severity: "P3"
+    description: "gate_checker _dispatch exception handlers (lines 266-267, 309-310) are unreachable because individual checkers never raise"
+    planned_fix: "Not needed -- defensive code for future gate types"
+  - id: "KI-002"
+    severity: "P3"
+    description: "Coverage must use --cov=src/pipeline (directory) not --cov=pipeline.module (module) due to PYTHONPATH=src dual-path"
+    planned_fix: "Will be resolved when proper package setup (pyproject.toml) is added"
+  - id: "KI-003"
+    severity: "P3"
+    description: "runner.resume() requires explicit YAML path -- use resume_with_pipeline() instead. State does not store pipeline YAML path."
+    planned_fix: "Could store yaml_path in PipelineState if needed"
+  - id: "KI-004"
+    severity: "P2"
+    description: "resume() raises PipelineExecutionError instead of implementing the contract. resume_with_pipeline() is the practical alternative but is not in the integration contract."
+    planned_fix: "Update integration contract to document resume_with_pipeline() or store yaml_path in state to enable resume()"
+  - id: "KI-005"
+    severity: "P2"
+    description: "slot_registry.validate_assignment() returns CapabilityMatch instead of bool as specified in integration contract. Richer return type provides more info but deviates from contract."
+    planned_fix: "Update integration contract to accept CapabilityMatch return type, or add a bool wrapper"
+
+verification_steps:
+  - step: "pytest"
+    command: "cd /mnt/nvme0n1/Projects/agent-orchestrator/engineer && PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing"
+    status: "success"
+    stdout_hash: "sha256:12de54c3a4ea398fc4da04ee586f227ef035d2f8a9d0f1613158074bb09c52c9"
+    metrics:
+      tests_passed: 270
+      tests_failed: 0
+      coverage_percent: 97.0
+    duration_seconds: 2.15
+  - step: "ruff-lint"
+    command: "cd /mnt/nvme0n1/Projects/agent-orchestrator/engineer && python3 -m ruff check src/pipeline/"
+    status: "success"
+    stdout_hash: "sha256:82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    metrics:
+      lint_errors: 0

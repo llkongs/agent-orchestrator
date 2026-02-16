@@ -1,0 +1,74 @@
+# SlotType: reviewer
+# Category: quality
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "reviewer"
+  name: "Quality Reviewer"
+  category: "quality"
+  description: >
+    Independently verifies a producer's delivery. Runs tests independently,
+    cross-validates metrics against DELIVERY.yaml claims, writes additional
+    boundary tests, and produces REVIEW.yaml per the delivery protocol.
+    Never trusts the producer's self-reported numbers.
+
+  input_schema:
+    type: object
+    required:
+      - delivery_yaml
+    properties:
+      delivery_yaml:
+        type: string
+        description: "Path to the producer's DELIVERY.yaml"
+      source_dir:
+        type: string
+        description: "Path to source code to review"
+      test_dir:
+        type: string
+        description: "Path to test code to run independently"
+      design_doc:
+        type: string
+        description: "Path to design document for architecture adherence check"
+
+  output_schema:
+    type: object
+    required:
+      - review_yaml
+      - verdict
+    properties:
+      review_yaml:
+        type: string
+        description: "Path to REVIEW.yaml (must pass validate_review())"
+      verdict:
+        type: string
+        enum:
+          - pass
+          - conditional_pass
+          - fail
+        description: "Review verdict per decision table in delivery-protocol.md"
+      issue_count:
+        type: integer
+        description: "Total number of issues found"
+      p0_count:
+        type: integer
+        description: "Number of P0 (blocking) issues"
+      additional_tests_written:
+        type: integer
+        description: "Number of additional tests written by reviewer"
+
+  required_capabilities:
+    - independent_testing
+    - code_review
+    - delivery_protocol
+    - cross_validation
+
+  constraints:
+    - "Must run all tests independently (never trust producer's numbers)"
+    - "Must compute checksums independently and compare to DELIVERY.yaml"
+    - "Must follow verdict decision table strictly (no subjective judgments)"
+    - "Must fill cross_validation section comparing producer vs QA metrics"
+    - "Must write additional boundary/edge-case tests"
+    - "Must write to qa/ directory only"
+    - "Must produce output within timeout"

@@ -1,0 +1,449 @@
+# Quantitative Trading Strategy Pipeline
+# Template: quant-strategy
+# Version: 2.0.0 (slot-based)
+# Description: Pipeline for developing or optimizing quantitative trading strategies.
+#   Architect scopes constraints -> Signal Researcher + Strategy Designer (parallel)
+#   -> Engineer implements -> QA reviews -> CEO approves
+#
+# Migration from v1.0.0:
+#   - steps[] -> slots[] with slot_type instead of role/agent_prompt
+#   - Added explicit data_flow[] edges
+#   - parallel_group preserved in execution config
+
+pipeline:
+  id: "quant-strategy"
+  name: "Quantitative Trading Strategy Development"
+  version: "2.0.0"
+  description: >
+    Pipeline for quantitative trading strategy work. Architect defines system
+    constraints and interfaces, then signal research and strategy design proceed
+    in parallel. Engineer implements the strategy, QA verifies end-to-end,
+    CEO approves for deployment.
+  created_by: "ARCH-001"
+  created_at: "2026-02-16T00:00:00Z"
+
+  parameters:
+    - name: "strategy_name"
+      type: "string"
+      required: true
+      description: "Strategy identifier (kebab-case, e.g., momentum-v2)"
+    - name: "target_symbol"
+      type: "string"
+      default: "BTC/USDT"
+      required: false
+      description: "Trading pair to target"
+    - name: "phase_id"
+      type: "string"
+      default: "phase-quant"
+      required: false
+      description: "Phase identifier for directory naming"
+
+  # ── Explicit Data Flow Edges ──────────────────────────────────────────────
+  data_flow:
+    - from_slot: "architect-scope"
+      to_slot: "signal-research"
+      artifact: "design_brief"
+      required: true
+
+    - from_slot: "architect-scope"
+      to_slot: "strategy-design"
+      artifact: "design_brief"
+      required: true
+
+    - from_slot: "architect-scope"
+      to_slot: "strategy-design"
+      artifact: "interface_constraints"
+      required: true
+
+    - from_slot: "signal-research"
+      to_slot: "strategy-design"
+      artifact: "signal_report"
+      required: false    # Can start without; integrates when available
+
+    - from_slot: "strategy-design"
+      to_slot: "engineer-implement"
+      artifact: "strategy_spec"
+      required: true
+
+    - from_slot: "strategy-design"
+      to_slot: "engineer-implement"
+      artifact: "decision_rules"
+      required: true
+
+    - from_slot: "signal-research"
+      to_slot: "engineer-implement"
+      artifact: "signal_prompts"
+      required: true
+
+    - from_slot: "architect-scope"
+      to_slot: "engineer-implement"
+      artifact: "interface_constraints"
+      required: true
+
+    - from_slot: "engineer-implement"
+      to_slot: "qa-review"
+      artifact: "delivery"
+      required: true
+
+    - from_slot: "engineer-implement"
+      to_slot: "qa-review"
+      artifact: "code"
+      required: true
+
+    - from_slot: "qa-review"
+      to_slot: "ceo-approve"
+      artifact: "review"
+      required: true
+
+  # ── Slots ─────────────────────────────────────────────────────────────────
+  slots:
+    # ── Slot 1: Architecture Scoping ───────────────────────────────────────
+    - id: "architect-scope"
+      slot_type: "designer"
+      name: "Architecture Scoping and Constraints"
+
+      inputs:
+        - name: "requirements"
+          from_slot: "external"
+          artifact: "ceo_strategy_requirements"
+          required: true
+
+      outputs:
+        - name: "design_brief"
+          type: "design_doc"
+          path: "architect/{phase_id}/{strategy_name}-design-brief.md"
+          validation: "exists"
+        - name: "interface_constraints"
+          type: "design_doc"
+          path: "architect/{phase_id}/{strategy_name}-interface-constraints.md"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Integration contract available"
+          type: "file_exists"
+          target: "architect/integration-contract.md"
+
+      post_conditions:
+        - check: "Design brief produced"
+          type: "file_exists"
+          target: "architect/{phase_id}/{strategy_name}-design-brief.md"
+        - check: "Interface constraints documented"
+          type: "file_exists"
+          target: "architect/{phase_id}/{strategy_name}-interface-constraints.md"
+
+      depends_on: []
+
+      task:
+        objective: "Define architecture constraints and interfaces for {strategy_name} strategy on {target_symbol}"
+        context_files:
+          - "architect/integration-contract.md"
+          - "architect/delivery-protocol.md"
+        deliverables:
+          - "Strategy design brief (system capabilities, data availability, interface constraints)"
+          - "Interface constraints document (AIStrategy interface, Signal model, risk gateway boundaries)"
+        constraints:
+          - "Must work within existing AIStrategy interface (on_tick -> Signal | None)"
+          - "Must not require changes to risk gateway"
+          - "Must be compatible with existing data pipeline channels"
+          - "Must respect existing Kline/Ticker data models"
+        kpis:
+          - "All interfaces clearly defined with typed signatures"
+          - "Constraints are implementable within current VM resources"
+
+      execution:
+        timeout_hours: 3.0
+
+    # ── Slot 2a: Signal Research (parallel with 2b) ────────────────────────
+    - id: "signal-research"
+      slot_type: "researcher"
+      name: "Market Signal Research"
+
+      inputs:
+        - name: "design_brief"
+          from_slot: "architect-scope"
+          artifact: "design_brief"
+          required: true
+
+      outputs:
+        - name: "signal_report"
+          type: "research"
+          path: "architect/{phase_id}/{strategy_name}-signal-report.md"
+          validation: "exists"
+        - name: "signal_prompts"
+          type: "config"
+          path: "engineer/prompts/{strategy_name}/"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Design brief available"
+          type: "artifact_valid"
+          target: "architect/{phase_id}/{strategy_name}-design-brief.md"
+
+      post_conditions:
+        - check: "Signal research report exists"
+          type: "file_exists"
+          target: "architect/{phase_id}/{strategy_name}-signal-report.md"
+
+      depends_on: ["architect-scope"]
+
+      task:
+        objective: "Research and identify profitable market signals for {strategy_name} on {target_symbol}"
+        context_files:
+          - "architect/{phase_id}/{strategy_name}-design-brief.md"
+          - "architect/integration-contract.md"
+        deliverables:
+          - "Signal research report with analyzed indicators and historical data"
+          - "Optimized prompt templates for AI strategy (if applicable)"
+        constraints:
+          - "Signals must be available from Bitget API or computable from kline data"
+          - "Prompts must be compatible with existing AI strategy prompt format"
+          - "Must cite data sources and methodology"
+        kpis:
+          - "At least 3 distinct signal types identified"
+          - "Each signal has historical performance analysis"
+          - "Prompts tested with sample kline data"
+
+      execution:
+        timeout_hours: 6.0
+        parallel_group: "research-phase"
+
+    # ── Slot 2b: Strategy Design (parallel with 2a) ────────────────────────
+    - id: "strategy-design"
+      slot_type: "designer"
+      name: "Strategy Rule Design"
+
+      inputs:
+        - name: "design_brief"
+          from_slot: "architect-scope"
+          artifact: "design_brief"
+          required: true
+        - name: "interface_constraints"
+          from_slot: "architect-scope"
+          artifact: "interface_constraints"
+          required: true
+        - name: "signal_report"
+          from_slot: "signal-research"
+          artifact: "signal_report"
+          required: false    # Can start without; integrates when available
+
+      outputs:
+        - name: "strategy_spec"
+          type: "design_doc"
+          path: "architect/{phase_id}/{strategy_name}-specification.md"
+          validation: "exists"
+        - name: "decision_rules"
+          type: "config"
+          path: "architect/{phase_id}/{strategy_name}-decision-rules.yaml"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Design brief available"
+          type: "artifact_valid"
+          target: "architect/{phase_id}/{strategy_name}-design-brief.md"
+
+      post_conditions:
+        - check: "Strategy specification exists"
+          type: "file_exists"
+          target: "architect/{phase_id}/{strategy_name}-specification.md"
+        - check: "Decision rules defined"
+          type: "file_exists"
+          target: "architect/{phase_id}/{strategy_name}-decision-rules.yaml"
+
+      depends_on: ["architect-scope"]
+
+      task:
+        objective: "Design trading strategy rules for {strategy_name}"
+        context_files:
+          - "architect/{phase_id}/{strategy_name}-design-brief.md"
+          - "architect/{phase_id}/{strategy_name}-interface-constraints.md"
+          - "architect/integration-contract.md"
+        deliverables:
+          - "Strategy specification (entry/exit rules, position sizing, risk parameters)"
+          - "Decision rules YAML (machine-readable trading rules)"
+        constraints:
+          - "Must work within AIStrategy interface"
+          - "Must respect risk gateway (non-bypassable)"
+          - "Confidence threshold must be configurable"
+          - "Position sizing must respect risk limits"
+        kpis:
+          - "Complete entry and exit rule definitions"
+          - "All parameters have sensible defaults and ranges"
+          - "Rules are testable via backtest engine"
+
+      execution:
+        timeout_hours: 5.0
+        parallel_group: "research-phase"
+
+    # ── Slot 3: Engineering Implementation ─────────────────────────────────
+    - id: "engineer-implement"
+      slot_type: "implementer"
+      name: "Strategy Implementation"
+
+      inputs:
+        - name: "strategy_spec"
+          from_slot: "strategy-design"
+          artifact: "strategy_spec"
+          required: true
+        - name: "decision_rules"
+          from_slot: "strategy-design"
+          artifact: "decision_rules"
+          required: true
+        - name: "signal_prompts"
+          from_slot: "signal-research"
+          artifact: "signal_prompts"
+          required: true
+        - name: "interface_constraints"
+          from_slot: "architect-scope"
+          artifact: "interface_constraints"
+          required: true
+
+      outputs:
+        - name: "code"
+          type: "code"
+          path: "engineer/src/"
+          validation: "exists"
+        - name: "tests"
+          type: "test_code"
+          path: "engineer/tests/"
+          validation: "exists"
+        - name: "delivery"
+          type: "delivery_yaml"
+          path: "engineer/DELIVERY.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "Strategy specification available"
+          type: "artifact_valid"
+          target: "architect/{phase_id}/{strategy_name}-specification.md"
+        - check: "Signal prompts available"
+          type: "file_exists"
+          target: "engineer/prompts/{strategy_name}/"
+        - check: "Integration contract available"
+          type: "file_exists"
+          target: "architect/integration-contract.md"
+
+      post_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+        - check: "All tests pass"
+          type: "tests_pass"
+          target: "engineer/tests/"
+
+      depends_on: ["signal-research", "strategy-design"]
+
+      task:
+        objective: "Implement {strategy_name} strategy per specification and decision rules"
+        context_files:
+          - "architect/integration-contract.md"
+          - "architect/{phase_id}/{strategy_name}-specification.md"
+          - "architect/{phase_id}/{strategy_name}-decision-rules.yaml"
+          - "architect/delivery-protocol.md"
+        deliverables:
+          - "Strategy code following AIStrategy interface"
+          - "Updated prompt templates"
+          - "Tests with >= 85% coverage"
+          - "DELIVERY.yaml with verification steps"
+        constraints:
+          - "Follow AIStrategy interface (on_tick -> Signal | None)"
+          - "All monetary values as Decimal"
+          - "Async-only I/O"
+          - "No risk gateway bypass"
+        kpis:
+          - "Test coverage >= 85%"
+          - "0 test failures"
+          - "DELIVERY.yaml passes validate_delivery()"
+
+      execution:
+        timeout_hours: 8.0
+        retry_on_fail: true
+        max_retries: 2
+
+    # ── Slot 4: QA Review ──────────────────────────────────────────────────
+    - id: "qa-review"
+      slot_type: "reviewer"
+      name: "QA Independent Review"
+
+      inputs:
+        - name: "delivery"
+          from_slot: "engineer-implement"
+          artifact: "delivery"
+          required: true
+        - name: "code"
+          from_slot: "engineer-implement"
+          artifact: "code"
+          required: true
+
+      outputs:
+        - name: "review"
+          type: "review_yaml"
+          path: "qa/{phase_id}/REVIEW.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+
+      post_conditions:
+        - check: "REVIEW.yaml exists and valid"
+          type: "review_valid"
+          target: "qa/{phase_id}/REVIEW.yaml"
+
+      depends_on: ["engineer-implement"]
+
+      task:
+        objective: "Independently verify {strategy_name} implementation"
+        context_files:
+          - "architect/delivery-protocol.md"
+          - "engineer/DELIVERY.yaml"
+        deliverables:
+          - "REVIEW.yaml with independent metrics and cross-validation"
+        constraints:
+          - "Run all tests independently"
+          - "Cross-validate all metrics"
+          - "Follow verdict decision table"
+        kpis:
+          - "REVIEW.yaml passes validate_review()"
+          - "Cross-validation suspicious == false"
+
+      execution:
+        timeout_hours: 4.0
+
+    # ── Slot 5: CEO Approval ───────────────────────────────────────────────
+    - id: "ceo-approve"
+      slot_type: "approver"
+      name: "CEO Approval"
+
+      inputs:
+        - name: "review"
+          from_slot: "qa-review"
+          artifact: "review"
+          required: true
+
+      outputs:
+        - name: "approval"
+          type: "approval"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "QA verdict acceptable"
+          type: "custom"
+          target: "yaml_field:qa/{phase_id}/REVIEW.yaml:verdict != fail"
+
+      post_conditions: []
+
+      depends_on: ["qa-review"]
+
+      task:
+        objective: "Approve {strategy_name} for deployment"
+        deliverables:
+          - "Go/No-Go decision"
+        constraints:
+          - "Review verdict and P0/P1 issues"
+          - "Verify cross-validation is clean"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: false

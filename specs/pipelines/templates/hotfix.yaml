@@ -1,0 +1,281 @@
+# Hotfix Pipeline
+# Template: hotfix
+# Version: 2.0.0 (slot-based)
+# Description: Emergency fix pipeline that skips the design phase.
+#   Engineer fixes -> QA reviews -> CEO approves -> Deploy
+#   Used when a production bug needs immediate resolution.
+#
+# Migration from v1.0.0:
+#   - steps[] -> slots[] with slot_type instead of role/agent_prompt
+#   - Added explicit data_flow[] edges
+
+pipeline:
+  id: "hotfix"
+  name: "Hotfix (Emergency Fix)"
+  version: "2.0.0"
+  description: >
+    Expedited pipeline for emergency bug fixes. Skips the design phase because
+    the fix scope is small and well-understood. Engineer implements the fix
+    directly, QA verifies it does not regress, CEO approves, Engineer deploys.
+    IMPORTANT: This pipeline should only be used for small, well-scoped fixes.
+    Larger changes should use the standard-feature pipeline even under time pressure.
+  created_by: "ARCH-001"
+  created_at: "2026-02-16T00:00:00Z"
+
+  parameters:
+    - name: "bug_id"
+      type: "string"
+      required: true
+      description: "Bug identifier (e.g., P1-042, KI-003)"
+    - name: "bug_description"
+      type: "string"
+      required: true
+      description: "Brief description of the bug to fix"
+    - name: "affected_module"
+      type: "string"
+      required: true
+      description: "Module affected (e.g., risk, execution, strategy)"
+    - name: "phase_id"
+      type: "string"
+      default: "hotfix"
+      required: false
+      description: "Phase identifier for directory naming"
+
+  # ── Explicit Data Flow Edges ──────────────────────────────────────────────
+  data_flow:
+    - from_slot: "engineer-fix"
+      to_slot: "qa-review"
+      artifact: "delivery"
+      required: true
+
+    - from_slot: "engineer-fix"
+      to_slot: "qa-review"
+      artifact: "code"
+      required: true
+
+    - from_slot: "qa-review"
+      to_slot: "ceo-approve"
+      artifact: "review"
+      required: true
+
+    - from_slot: "ceo-approve"
+      to_slot: "deploy"
+      artifact: "approval"
+      required: true
+
+    - from_slot: "engineer-fix"
+      to_slot: "deploy"
+      artifact: "code"
+      required: true
+
+  # ── Slots ─────────────────────────────────────────────────────────────────
+  slots:
+    # ── Slot 1: Implement Fix ──────────────────────────────────────────────
+    - id: "engineer-fix"
+      slot_type: "implementer"
+      name: "Implement Hotfix"
+
+      inputs:
+        - name: "bug_report"
+          from_slot: "external"
+          artifact: "ceo_bug_report"
+          required: true
+
+      outputs:
+        - name: "code"
+          type: "code"
+          path: "engineer/src/{affected_module}/"
+          validation: "exists"
+        - name: "tests"
+          type: "test_code"
+          path: "engineer/tests/"
+          validation: "exists"
+        - name: "delivery"
+          type: "delivery_yaml"
+          path: "engineer/DELIVERY.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "Integration contract available"
+          type: "file_exists"
+          target: "architect/integration-contract.md"
+
+      post_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+        - check: "All tests pass"
+          type: "tests_pass"
+          target: "engineer/tests/"
+
+      depends_on: []
+
+      task:
+        objective: "Fix bug {bug_id}: {bug_description} in {affected_module}"
+        context_files:
+          - "architect/integration-contract.md"
+          - "architect/delivery-protocol.md"
+        deliverables:
+          - "Bug fix in engineer/src/{affected_module}/"
+          - "Regression test covering the bug"
+          - "DELIVERY.yaml with verification steps"
+        constraints:
+          - "Minimal change -- fix only the reported bug"
+          - "Do not refactor surrounding code"
+          - "Must not break existing interfaces"
+          - "Must add a specific test for this bug"
+          - "All existing tests must still pass"
+        kpis:
+          - "Bug is fixed (specific test passes)"
+          - "No test regressions"
+          - "DELIVERY.yaml passes validate_delivery()"
+
+      execution:
+        timeout_hours: 4.0
+        retry_on_fail: true
+        max_retries: 2
+
+    # ── Slot 2: QA Review ──────────────────────────────────────────────────
+    - id: "qa-review"
+      slot_type: "reviewer"
+      name: "QA Review"
+
+      inputs:
+        - name: "delivery"
+          from_slot: "engineer-fix"
+          artifact: "delivery"
+          required: true
+        - name: "code"
+          from_slot: "engineer-fix"
+          artifact: "code"
+          required: true
+
+      outputs:
+        - name: "review"
+          type: "review_yaml"
+          path: "qa/{phase_id}/REVIEW.yaml"
+          validation: "schema"
+
+      pre_conditions:
+        - check: "DELIVERY.yaml exists and valid"
+          type: "delivery_valid"
+          target: "engineer/DELIVERY.yaml"
+
+      post_conditions:
+        - check: "REVIEW.yaml exists and valid"
+          type: "review_valid"
+          target: "qa/{phase_id}/REVIEW.yaml"
+
+      depends_on: ["engineer-fix"]
+
+      task:
+        objective: "Verify hotfix for {bug_id} does not introduce regressions"
+        context_files:
+          - "architect/delivery-protocol.md"
+          - "engineer/DELIVERY.yaml"
+        deliverables:
+          - "REVIEW.yaml with independent metrics and cross-validation"
+        constraints:
+          - "Run full test suite (not just the new test)"
+          - "Verify no regressions in any module"
+          - "Cross-validate metrics with DELIVERY.yaml"
+        kpis:
+          - "REVIEW.yaml passes validate_review()"
+          - "0 test regressions"
+          - "Cross-validation suspicious == false"
+
+      execution:
+        timeout_hours: 2.0
+
+    # ── Slot 3: CEO Approval ───────────────────────────────────────────────
+    - id: "ceo-approve"
+      slot_type: "approver"
+      name: "CEO Approval"
+
+      inputs:
+        - name: "review"
+          from_slot: "qa-review"
+          artifact: "review"
+          required: true
+
+      outputs:
+        - name: "approval"
+          type: "approval"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "QA verdict acceptable"
+          type: "custom"
+          target: "yaml_field:qa/{phase_id}/REVIEW.yaml:verdict != fail"
+
+      post_conditions: []
+
+      depends_on: ["qa-review"]
+
+      task:
+        objective: "Approve hotfix {bug_id} for deployment"
+        deliverables:
+          - "Go/No-Go decision"
+        constraints:
+          - "Review verdict and regression test results"
+
+      execution:
+        timeout_hours: 1.0
+        retry_on_fail: false
+
+    # ── Slot 4: Deploy Fix ─────────────────────────────────────────────────
+    - id: "deploy"
+      slot_type: "deployer"
+      name: "Deploy Hotfix"
+
+      inputs:
+        - name: "approval"
+          from_slot: "ceo-approve"
+          artifact: "approval"
+          required: true
+        - name: "code"
+          from_slot: "engineer-fix"
+          artifact: "code"
+          required: true
+
+      outputs:
+        - name: "deployment"
+          type: "deployment"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "CEO approved deployment"
+          type: "approval"
+          target: "ceo_deploy_approval"
+        - check: "PVE snapshot taken"
+          type: "custom"
+          target: "pve_snapshot_verified"
+
+      post_conditions:
+        - check: "Service running"
+          type: "custom"
+          target: "command:ssh trading-vm systemctl is-active trading"
+
+      depends_on: ["ceo-approve"]
+
+      task:
+        objective: "Deploy hotfix {bug_id} to Trading VM"
+        deliverables:
+          - "Code deployed via rsync"
+          - "Service restarted"
+          - "Post-deploy verification"
+        constraints:
+          - "Take PVE snapshot before deployment"
+          - "Verify paper trading mode"
+          - "Monitor logs for 5 minutes after restart"
+        kpis:
+          - "Zero downtime"
+          - "No error logs after restart"
+          - "Bug fix verified in production"
+
+      execution:
+        timeout_hours: 1.0
+        retry_on_fail: true
+        max_retries: 1

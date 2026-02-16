@@ -1,0 +1,91 @@
+# DELIVERY.yaml -- WP-2.2 + WP-2.3 Deliverables
+# Author: ARCH-001 (Pipeline Architect)
+# Date: 2026-02-16
+# Work Packages: WP-2.2 (Template Conversion) + WP-2.3 (Schema & Guide Update)
+
+delivery:
+  author: "ARCH-001"
+  date: "2026-02-16T00:00:00Z"
+  work_packages:
+    - "WP-2.2: Convert 5 pipeline templates to slot-based format"
+    - "WP-2.3: Update schema.yaml and implementation-guide.md"
+
+  files:
+    # WP-2.2: Converted Templates (5 files)
+    - path: "specs/pipelines/templates/standard-feature.yaml"
+      sha256: "a1d09b114319a098b0aa7d21d48766b188103911ea6574b7c5384f95638b90c1"
+      action: "modified"
+      description: "Standard feature pipeline v2.0.0 -- slot-based with data_flow edges"
+
+    - path: "specs/pipelines/templates/research-task.yaml"
+      sha256: "05af642f29ba9ef3306f6d08dc1fadbe7932e87e57e2db17a61ac599dd7ac1ff"
+      action: "modified"
+      description: "Research task pipeline v2.0.0 -- slot-based, removed researcher_role/researcher_prompt params"
+
+    - path: "specs/pipelines/templates/quant-strategy.yaml"
+      sha256: "15e29413cfa3e6ce052188f858520050d120a21cffc8ff73b9af379f413bfc61"
+      action: "modified"
+      description: "Quant strategy pipeline v2.0.0 -- slot-based with parallel_group preserved"
+
+    - path: "specs/pipelines/templates/security-hardening.yaml"
+      sha256: "dfa4624c806ede4b9c415d6820ddff102c1ddcc8e6bf0495151c08b68175a37a"
+      action: "modified"
+      description: "Security hardening pipeline v2.0.0 -- slot-based with auditor slot type"
+
+    - path: "specs/pipelines/templates/hotfix.yaml"
+      sha256: "e1df589a47226dc63fb8958a96b96172f94eb337fd390f3aa024994edc085a67"
+      action: "modified"
+      description: "Hotfix pipeline v2.0.0 -- slot-based with deployer slot type"
+
+    # WP-2.2: New SlotType Definitions (2 files -- needed by templates)
+    - path: "specs/pipelines/slot-types/deployer.yaml"
+      sha256: "b950b0e4192cd2566441ea53d6e45cdb900f7f880403ffbc72aee090f827a5ba"
+      action: "created"
+      description: "New SlotType for deployment operations (used by standard-feature, hotfix)"
+
+    - path: "specs/pipelines/slot-types/auditor.yaml"
+      sha256: "ab8bd0f628de90ca9c482e0f729bbb24bddf60f7f1e947756cdfa9543fa10ee8"
+      action: "created"
+      description: "New SlotType for security audit operations (used by security-hardening)"
+
+    # WP-2.3: Schema and Guide Updates (2 files)
+    - path: "specs/pipelines/schema.yaml"
+      sha256: "99a636c7b3f82e7e9b9fe20d3626d760db75b606618f8a7a87277bced4f7211e"
+      action: "modified"
+      description: "Schema v2.0 -- slots replace steps, data_flow edges, slot_assignment schema"
+
+    - path: "specs/pipelines/implementation-guide.md"
+      sha256: "19c5040e9f5e3e8cf3e4ddae1eab7b966ad95c53fd1eea4180be937adb5f930c"
+      action: "modified"
+      description: "Implementation guide v2.0 -- 9 modules (added slot_registry.py), all Step->Slot"
+
+  summary:
+    total_files: 9
+    created: 2
+    modified: 7
+    deleted: 0
+
+  verification_steps:
+    - step: "All templates use slot_type instead of role/agent_prompt"
+      status: "pass"
+      evidence: "All 5 templates converted: grep for 'role:' returns 0 matches, grep for 'slot_type:' returns matches in all files"
+
+    - step: "All templates have explicit data_flow[] edges"
+      status: "pass"
+      evidence: "All 5 templates contain data_flow section: standard-feature (8 edges), research-task (3), quant-strategy (11), security-hardening (11), hotfix (5)"
+
+    - step: "All slot_type references exist in slot-types directory"
+      status: "pass"
+      evidence: "7 slot types used across templates: designer, researcher, implementer, reviewer, approver, deployer, auditor -- all have corresponding .yaml in specs/pipelines/slot-types/"
+
+    - step: "Schema reflects slot-based fields"
+      status: "pass"
+      evidence: "Schema v2.0 has slot_schema (not step_schema), data_flow_edge_schema, slot_assignment_schema, slot_type_defaults keyed by slot_type ID"
+
+    - step: "Implementation guide includes slot_registry.py module"
+      status: "pass"
+      evidence: "Module 6 (slot_registry.py) added with full interface, implementation notes, and 10 test cases"
+
+    - step: "No contradictions with architecture.md or integration-contract.md"
+      status: "pass"
+      evidence: "All model names, field names, and interface signatures align with architect/architecture.md and specs/integration-contract.md"

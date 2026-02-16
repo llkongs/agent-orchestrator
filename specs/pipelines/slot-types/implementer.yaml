@@ -1,0 +1,69 @@
+# SlotType: implementer
+# Category: engineering
+# Version: 1.0.0
+# Date: 2026-02-16
+# Author: ARCH-001
+
+slot_type:
+  id: "implementer"
+  name: "Code Implementer"
+  category: "engineering"
+  description: >
+    Writes production source code and tests per a design specification.
+    Follows the integration contract interfaces exactly. Produces
+    DELIVERY.yaml per the delivery protocol.
+
+  input_schema:
+    type: object
+    required:
+      - design_doc
+    properties:
+      design_doc:
+        type: string
+        description: "Path to the design document specifying what to implement"
+      integration_contract:
+        type: string
+        description: "Path to integration-contract.md"
+      implementation_guide:
+        type: string
+        description: "Path to implementation-guide.md with module specs"
+      context_artifacts:
+        type: array
+        items:
+          type: string
+        description: "Paths to additional context (research reports, prior code)"
+
+  output_schema:
+    type: object
+    required:
+      - delivery_yaml
+    properties:
+      delivery_yaml:
+        type: string
+        description: "Path to DELIVERY.yaml (must pass validate_delivery())"
+      source_dir:
+        type: string
+        description: "Path to source code directory"
+      test_dir:
+        type: string
+        description: "Path to test code directory"
+      test_count:
+        type: integer
+        description: "Number of tests written"
+      coverage_pct:
+        type: number
+        description: "Test coverage percentage"
+
+  required_capabilities:
+    - python_development
+    - test_writing
+    - delivery_protocol
+
+  constraints:
+    - "Must follow integration contract interfaces exactly"
+    - "Must produce DELIVERY.yaml per specs/delivery-protocol.md"
+    - "Must achieve >= 85% test coverage"
+    - "Must have 0 test failures"
+    - "Must use yaml.safe_load() (never yaml.load())"
+    - "Must write to engineer/ directory only"
+    - "Must produce output within timeout"
