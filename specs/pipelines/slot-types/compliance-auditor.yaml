@@ -1,0 +1,194 @@
+# Compliance Auditor SlotType Definition
+# Version: 1.0.0
+# Author: ARCH-001
+# Date: 2026-02-17
+# Category: governance
+#
+# This SlotType defines the interface contract for process and compliance
+# auditing within the pipeline engine. It is architecturally independent
+# of the delivery chain (Engineer -> QA). The auditor reviews the entire
+# process post-hoc, including QA's own adherence to protocol.
+#
+# Current filler: PMO-001 (interim)
+# Future filler: COMP-001 (when hiring criteria met)
+#
+# Key principle: No veto power. Observe, measure, report. Never block.
+#
+# NOTE: This is distinct from `auditor.yaml` (security auditor, category: security).
+# This slot focuses on PROCESS compliance (CMMI PPQA), not security vulnerabilities.
+
+---
+
+slot_type:
+  id: "compliance-auditor"
+  name: "Process & Compliance Auditor"
+  version: "1.0.0"
+  category: "governance"
+  description: >
+    Performs post-hoc process compliance auditing on completed pipeline runs.
+    Reviews gate execution, artifact completeness, protocol adherence, and
+    produces a Process Audit Report with metrics and findings.
+    Maps to CMMI PPQA (Process and Product Quality Assurance) role.
+    Independent of the delivery chain -- audits all roles including QA.
+    Distinct from the security auditor (auditor.yaml) which focuses on
+    code and infrastructure security.
+
+  # -- Input Schema --
+  # What the compliance auditor receives before starting work
+  input_schema:
+    type: "object"
+    required:
+      - "pipeline_state"
+      - "gate_reports"
+    properties:
+      pipeline_state:
+        type: "string"
+        description: "Path to pipeline state YAML file (.state.yaml)"
+      event_log:
+        type: "string"
+        description: "Path to pipeline event log YAML (from ComplianceObserver)"
+      gate_reports:
+        type: "array"
+        items:
+          type: "string"
+        description: "Paths to all PMO gate report files for this pipeline run"
+      review_artifacts:
+        type: "array"
+        items:
+          type: "string"
+        description: "Paths to QA REVIEW.yaml files produced during this pipeline"
+      delivery_artifacts:
+        type: "array"
+        items:
+          type: "string"
+        description: "Paths to Engineer DELIVERY.yaml files produced during this pipeline"
+      design_artifacts:
+        type: "array"
+        items:
+          type: "string"
+        description: "Paths to Architect design documents referenced in this pipeline"
+      pipeline_definition:
+        type: "string"
+        description: "Path to the pipeline YAML template that was executed"
+
+  # -- Output Schema --
+  # What the compliance auditor must produce
+  output_schema:
+    type: "object"
+    required:
+      - "audit_verdict"
+      - "findings"
+      - "process_metrics"
+    properties:
+      audit_verdict:
+        type: "string"
+        enum:
+          - "COMPLIANT"       # All checks pass, process was followed correctly
+          - "NON_COMPLIANT"   # One or more CRITICAL/HIGH findings
+          - "ADVISORY"        # Only MEDIUM/LOW/INFO findings
+        description: "Overall process compliance verdict"
+
+      findings:
+        type: "array"
+        items:
+          type: "object"
+          required:
+            - "severity"
+            - "category"
+            - "description"
+            - "recommendation"
+          properties:
+            severity:
+              type: "string"
+              enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+            category:
+              type: "string"
+              enum:
+                - "gate_compliance"        # Was the gate executed correctly?
+                - "artifact_completeness"  # Are all required artifacts present?
+                - "process_adherence"      # Was the defined process followed?
+                - "sla_compliance"         # Were timeframes met?
+                - "independence_violation" # Did an agent violate independence rules?
+                - "audit_trail"           # Is the audit trail complete?
+                - "protocol_deviation"    # Was delivery/review protocol followed?
+            description:
+              type: "string"
+              description: "What was found"
+            evidence:
+              type: "string"
+              description: "File path, data point, or observation supporting the finding"
+            recommendation:
+              type: "string"
+              description: "What should be done to address this finding"
+
+      process_metrics:
+        type: "object"
+        required:
+          - "gate_compliance_rate"
+          - "artifact_completeness_rate"
+        properties:
+          gate_compliance_rate:
+            type: "number"
+            description: "Gates correctly executed / gates required (0.0 - 1.0)"
+          artifact_completeness_rate:
+            type: "number"
+            description: "Artifacts produced / artifacts expected (0.0 - 1.0)"
+          sla_compliance_rate:
+            type: "number"
+            description: "Steps completed within timeout / total timed steps (0.0 - 1.0)"
+          deviation_count:
+            type: "integer"
+            description: "Number of process deviations detected"
+          mean_fix_cycles:
+            type: "number"
+            description: "Average delivery-fix-review cycles per implement step"
+          total_duration_hours:
+            type: "number"
+            description: "Pipeline wall-clock duration in hours"
+
+      recommendations:
+        type: "array"
+        items:
+          type: "string"
+        description: "Process improvement suggestions for future pipeline runs (PDCA)"
+
+  # -- Required Capabilities --
+  # An agent filling this slot must possess ALL of these capabilities
+  required_capabilities:
+    - "process_audit"              # Can systematically audit process adherence
+    - "artifact_validation"        # Can verify artifact existence and format
+    - "noncompliance_tracking"     # Can identify and classify deviations
+    - "trend_analysis"             # Can analyze metrics across multiple runs
+    - "objective_evaluation"       # Can evaluate without bias toward any agent
+    - "structured_report_writing"  # Can produce machine-parseable reports
+
+  # -- Constraints --
+  # Rules the agent filling this slot must follow
+  constraints:
+    - "Must be independent of all agents whose work it audits"
+    - "Must not modify any pipeline artifacts (read-only access to all directories)"
+    - "Must produce machine-parseable Process Audit Report in YAML format"
+    - "Must audit QA's process adherence in addition to Engineer's"
+    - "Must audit PMO's gate execution accuracy"
+    - "ADVISORY findings are informational; NON_COMPLIANT requires CEO attention"
+    - "Does NOT have veto power -- observation and reporting only"
+    - "Must cite specific evidence (file path, data point) for every finding"
+    - "Process Audit Report is distinct from REVIEW.yaml -- different artifact type"
+
+  # -- Directory Permissions --
+  permissions:
+    read:
+      - "architect/"       # Design documents, evaluations
+      - "engineer/"        # DELIVERY.yaml, source code (for completeness check only)
+      - "qa/"              # REVIEW.yaml
+      - "pmo/"             # Gate reports
+      - "specs/"           # Pipeline definitions, contracts
+      - "agents/"          # Agent prompts (for boot verification audit)
+      - "state/"           # Pipeline state files
+    write:
+      - "state/active/audit/"   # Own output directory only
+
+  # -- Reporting Line --
+  reporting:
+    primary: "CEO"          # Audit findings go to CEO
+    secondary: "PMO-001"    # PMO receives copy for process improvement tracking

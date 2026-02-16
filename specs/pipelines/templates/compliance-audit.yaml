@@ -1,0 +1,298 @@
+# Compliance Audit Pipeline Template
+# Template: compliance-audit
+# Version: 1.0.0
+# Author: ARCH-001
+# Date: 2026-02-17
+#
+# Description: Post-pipeline compliance audit workflow.
+#   This template is appended to (or run after) any pipeline that requires
+#   process compliance verification. It is NOT part of the delivery chain.
+#
+# Usage:
+#   1. Standalone: Run after any pipeline completes to audit its execution
+#   2. Appended: Add the audit step to an existing pipeline template
+#
+# The auditor examines all artifacts from the completed pipeline run:
+#   - Pipeline state file (execution history)
+#   - Event log (from ComplianceObserver)
+#   - PMO gate reports
+#   - QA REVIEW.yaml
+#   - Engineer DELIVERY.yaml
+#   - Architect design documents
+#
+# Current filler: PMO-001 (interim, until COMP-001 prompt is ready)
+# Future filler: COMP-001 (dedicated compliance auditor)
+
+pipeline:
+  id: "compliance-audit"
+  name: "Pipeline Compliance Audit"
+  version: "1.0.0"
+  description: >
+    Post-pipeline compliance audit. Reviews the entire execution record of a
+    completed pipeline run to verify process adherence, gate compliance, artifact
+    completeness, and protocol conformance. Produces a Process Audit Report with
+    findings and process improvement recommendations. The auditor is independent
+    of the delivery chain and can audit all roles including QA and PMO.
+  created_by: "ARCH-001"
+  created_at: "2026-02-17T00:00:00Z"
+
+  parameters:
+    - name: "target_pipeline_id"
+      type: "string"
+      required: true
+      description: "ID of the pipeline run being audited (e.g., 'standard-feature')"
+    - name: "target_state_file"
+      type: "string"
+      required: true
+      description: "Path to the target pipeline's .state.yaml file"
+    - name: "target_event_log"
+      type: "string"
+      required: false
+      default: ""
+      description: "Path to the target pipeline's event log (from ComplianceObserver)"
+    - name: "phase_id"
+      type: "string"
+      required: false
+      default: "audit"
+      description: "Phase identifier for output directory naming"
+    - name: "audit_scope"
+      type: "string"
+      required: false
+      default: "full"
+      description: "Audit scope: 'full' (all checks) | 'gates_only' | 'artifacts_only'"
+
+  steps:
+    # -- Step 1: Collect Audit Evidence --
+    # PMO (or future COMP-001) gathers all artifacts from the target pipeline
+    - id: "collect-evidence"
+      name: "Collect Audit Evidence"
+      type: "compliance_audit"
+      slot_type: "compliance-auditor"
+      role: "PMO-001"
+      agent_prompt: "agents/06-pmo-agent.md"
+
+      inputs:
+        - name: "pipeline_state"
+          from_step: "external"
+          artifact: "target_state_file"
+          required: true
+        - name: "event_log"
+          from_step: "external"
+          artifact: "target_event_log"
+          required: false
+
+      outputs:
+        - name: "evidence_manifest"
+          type: "config"
+          path: "state/active/audit/{target_pipeline_id}-evidence.yaml"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Target pipeline state file exists"
+          type: "file_exists"
+          target: "{target_state_file}"
+        - check: "Target pipeline is completed or failed"
+          type: "custom"
+          target: "yaml_field:{target_state_file}:status in [completed, failed, aborted]"
+
+      post_conditions:
+        - check: "Evidence manifest produced"
+          type: "file_exists"
+          target: "state/active/audit/{target_pipeline_id}-evidence.yaml"
+
+      depends_on: []
+
+      task:
+        objective: >
+          Collect all artifacts from pipeline run '{target_pipeline_id}' for compliance audit.
+          Read the pipeline state file, identify all gate reports, DELIVERY.yaml files,
+          REVIEW.yaml files, and design documents referenced in the pipeline.
+          Produce an evidence manifest listing all file paths and their existence status.
+        context_files:
+          - "agents/06-pmo-agent.md"
+          - "{target_state_file}"
+          - "specs/delivery-protocol.md"
+        deliverables:
+          - "Evidence manifest YAML with all artifact paths and existence verification"
+        constraints:
+          - "Read-only access to all directories"
+          - "Do not modify any existing artifacts"
+          - "Record any missing artifacts as findings"
+        kpis:
+          - "All artifacts referenced in pipeline state are accounted for"
+          - "Evidence manifest is machine-parseable YAML"
+
+      execution:
+        timeout_hours: 1.0
+        retry_on_fail: false
+
+    # -- Step 2: Process Compliance Audit --
+    # The core audit step: review all evidence and produce findings
+    - id: "process-audit"
+      name: "Process Compliance Audit"
+      type: "compliance_audit"
+      slot_type: "compliance-auditor"
+      role: "PMO-001"
+      agent_prompt: "agents/06-pmo-agent.md"
+
+      inputs:
+        - name: "evidence_manifest"
+          from_step: "collect-evidence"
+          artifact: "evidence_manifest"
+          required: true
+
+      outputs:
+        - name: "audit_report"
+          type: "audit_report"
+          path: "state/active/audit/{target_pipeline_id}-audit-report.yaml"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Evidence manifest exists"
+          type: "artifact_valid"
+          target: "state/active/audit/{target_pipeline_id}-evidence.yaml"
+
+      post_conditions:
+        - check: "Audit report produced"
+          type: "file_exists"
+          target: "state/active/audit/{target_pipeline_id}-audit-report.yaml"
+        - check: "Audit report has required fields"
+          type: "custom"
+          target: "yaml_field:state/active/audit/{target_pipeline_id}-audit-report.yaml:audit_verdict != null"
+
+      depends_on: ["collect-evidence"]
+
+      task:
+        objective: >
+          Perform comprehensive process compliance audit on pipeline '{target_pipeline_id}'.
+          Scope: {audit_scope}.
+
+          For each step in the audited pipeline, verify:
+          1. GATE COMPLIANCE: Were pre/post-condition gates executed? Did gate results match
+             the step outcomes? Were any gates skipped or overridden?
+          2. ARTIFACT COMPLETENESS: Do all expected output artifacts exist? Are DELIVERY.yaml
+             and REVIEW.yaml present for implement/review steps?
+          3. PROCESS ADHERENCE: Was the defined pipeline topology followed? Were steps
+             executed in the correct dependency order? Were parallel constraints respected?
+          4. SLA COMPLIANCE: Did each step complete within its timeout? Were there excessive
+             retries?
+          5. INDEPENDENCE VERIFICATION: Did QA produce independent metrics? Was cross-validation
+             performed? Did any agent write outside their permitted directory?
+          6. AUDIT TRAIL: Are all gate reports complete? Is the event log continuous?
+             Are all state transitions recorded?
+
+          Produce a Process Audit Report with:
+          - audit_verdict: COMPLIANT | NON_COMPLIANT | ADVISORY
+          - findings: list of categorized findings with severity, evidence, recommendation
+          - process_metrics: gate_compliance_rate, artifact_completeness_rate, etc.
+          - recommendations: process improvements for future runs
+        context_files:
+          - "agents/06-pmo-agent.md"
+          - "specs/delivery-protocol.md"
+          - "state/active/audit/{target_pipeline_id}-evidence.yaml"
+        deliverables:
+          - "Process Audit Report in YAML format (matching compliance-auditor SlotType output_schema)"
+        constraints:
+          - "Read-only access -- do not modify any pipeline artifacts"
+          - "Every finding must cite specific evidence (file path or data point)"
+          - "Verdict must follow severity rules: any CRITICAL/HIGH = NON_COMPLIANT"
+          - "Audit QA's process adherence, not just Engineer's"
+          - "Audit PMO gate report accuracy if gate reports exist"
+          - "Do NOT apply veto or block any pipeline -- report only"
+        kpis:
+          - "audit_verdict is one of: COMPLIANT, NON_COMPLIANT, ADVISORY"
+          - "All findings have severity, category, description, evidence, recommendation"
+          - "process_metrics contains at least gate_compliance_rate and artifact_completeness_rate"
+          - "Report is valid YAML parseable by yaml.safe_load()"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # -- Step 3: CEO Review of Audit --
+    # CEO reviews audit findings (only if NON_COMPLIANT)
+    - id: "ceo-review-audit"
+      name: "CEO Review Audit Findings"
+      type: "approve"
+      slot_type: "approver"
+      role: "CEO"
+      agent_prompt: null
+
+      inputs:
+        - name: "audit_report"
+          from_step: "process-audit"
+          artifact: "audit_report"
+          required: true
+
+      outputs:
+        - name: "audit_decision"
+          type: "approval"
+          path: null
+          validation: "none"
+
+      pre_conditions:
+        - check: "Audit report exists"
+          type: "artifact_valid"
+          target: "state/active/audit/{target_pipeline_id}-audit-report.yaml"
+
+      post_conditions: []
+
+      depends_on: ["process-audit"]
+
+      task:
+        objective: >
+          Review the Process Audit Report for pipeline '{target_pipeline_id}'.
+          If verdict is COMPLIANT or ADVISORY: acknowledge and archive.
+          If verdict is NON_COMPLIANT: decide on corrective action for each finding.
+        deliverables:
+          - "Acknowledgment or corrective action decision"
+        constraints:
+          - "CRITICAL findings require explicit resolution plan"
+          - "HIGH findings should be addressed in next pipeline run"
+          - "MEDIUM/LOW/INFO findings are informational"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: false
+
+
+# ============================================================================
+# AUDIT REPORT FORMAT (Reference for the auditor agent)
+# ============================================================================
+#
+# The Process Audit Report must be a YAML file with this structure:
+#
+# audit_report:
+#   pipeline_id: "standard-feature"
+#   pipeline_name: "Standard Feature Development"
+#   audited_at: "2026-02-17T14:00:00Z"
+#   auditor: "PMO-001"  # or "COMP-001" in future
+#   scope: "full"
+#
+#   audit_verdict: "COMPLIANT"  # or "NON_COMPLIANT" or "ADVISORY"
+#
+#   findings:
+#     - severity: "MEDIUM"
+#       category: "sla_compliance"
+#       description: "QA review step exceeded timeout by 30 minutes"
+#       evidence: "Step qa-review: timeout_hours=4.0, actual_hours=4.5"
+#       recommendation: "Consider increasing QA timeout for complex reviews"
+#
+#     - severity: "INFO"
+#       category: "process_adherence"
+#       description: "Pipeline completed with 0 retries across all steps"
+#       evidence: "All steps: retry_count=0"
+#       recommendation: "No action needed -- excellent first-pass quality"
+#
+#   process_metrics:
+#     gate_compliance_rate: 1.0       # 5/5 gates executed correctly
+#     artifact_completeness_rate: 1.0  # 12/12 artifacts produced
+#     sla_compliance_rate: 0.8         # 4/5 steps within timeout
+#     deviation_count: 0
+#     mean_fix_cycles: 1.0             # Average 1 delivery-review cycle
+#     total_duration_hours: 18.5
+#
+#   recommendations:
+#     - "Consider adding QA timeout buffer for large feature deliveries"
+#     - "Gate reports should include evidence timestamps for all checklist items"

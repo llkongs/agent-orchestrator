@@ -12,7 +12,7 @@ capabilities:
   - "root_cause_analysis"
   - "continuous_improvement"
 compatible_slot_types:
-  - "auditor"
+  - "compliance-auditor"
 ---
 
 # Compliance Auditor Agent
@@ -422,4 +422,4 @@ This section explicitly defines the boundary between COMP-001 (you) and QA-001 t
 | **Checks QA** | No -- QA does not audit itself | Yes -- audits whether QA followed its own 14-step workflow |
 | **Trend analysis** | No -- each review is independent | Yes -- tracks noncompliance trends across audit cycles |
 | **Reports to** | team-lead (delivery verdict) | PMO (process owner) and team-lead |
-| **SlotType** | `reviewer` (category: quality) | `auditor` (category: governance) |
+| **SlotType** | `reviewer` (category: quality) | `compliance-auditor` (category: governance) |
