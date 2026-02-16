@@ -28,6 +28,10 @@ class TestPublicAPI:
         assert hasattr(pipeline, "AgentCapabilities")
         assert hasattr(pipeline, "CapabilityMatch")
         assert hasattr(pipeline, "SlotAssignment")
+        assert hasattr(pipeline, "PipelineObserver")
+
+    def test_observer_exports(self):
+        assert hasattr(pipeline, "ComplianceObserver")
 
     def test_loader_exports(self):
         assert hasattr(pipeline, "PipelineLoader")

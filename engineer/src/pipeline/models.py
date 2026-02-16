@@ -7,6 +7,7 @@ this module has zero internal dependencies.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -42,6 +43,7 @@ class PipelineStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     ABORTED = "aborted"
+    AUDITING = "auditing"
 
 
 class ArtifactType(StrEnum):
@@ -290,3 +292,73 @@ class SlotAssignment:
     agent_id: str
     agent_prompt: str
     reason: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Observer protocol
+# ---------------------------------------------------------------------------
+
+
+class PipelineObserver(ABC):
+    """Abstract base class for pipeline event observers.
+
+    Implementations receive notifications at key lifecycle points.
+    Observer failures are caught and logged -- they never propagate
+    to the pipeline execution path.
+
+    Event types:
+        - pipeline_started / pipeline_completed / pipeline_failed
+        - slot_started / slot_completed / slot_failed
+        - gate_check_started / gate_check_completed
+        - status_changed
+    """
+
+    @abstractmethod
+    def on_pipeline_started(
+        self, pipeline_id: str, state: PipelineState
+    ) -> None:
+        """Called when a pipeline begins execution."""
+
+    @abstractmethod
+    def on_pipeline_completed(
+        self, pipeline_id: str, state: PipelineState
+    ) -> None:
+        """Called when all slots reach a terminal state successfully."""
+
+    @abstractmethod
+    def on_pipeline_failed(
+        self, pipeline_id: str, state: PipelineState, error: str
+    ) -> None:
+        """Called when the pipeline reaches a failed state."""
+
+    @abstractmethod
+    def on_slot_started(
+        self, pipeline_id: str, slot_id: str, agent_id: str | None
+    ) -> None:
+        """Called when a slot transitions to IN_PROGRESS."""
+
+    @abstractmethod
+    def on_slot_completed(
+        self, pipeline_id: str, slot_id: str
+    ) -> None:
+        """Called when a slot transitions to COMPLETED."""
+
+    @abstractmethod
+    def on_slot_failed(
+        self, pipeline_id: str, slot_id: str, error: str
+    ) -> None:
+        """Called when a slot transitions to FAILED."""
+
+    @abstractmethod
+    def on_gate_check_completed(
+        self, pipeline_id: str, slot_id: str,
+        gate_type: str, results: list[GateCheckResult],
+    ) -> None:
+        """Called after pre- or post-condition gate checks finish."""
+
+    @abstractmethod
+    def on_status_changed(
+        self, pipeline_id: str,
+        old_status: PipelineStatus, new_status: PipelineStatus,
+    ) -> None:
+        """Called when the pipeline status enum changes."""

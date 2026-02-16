@@ -1,11 +1,11 @@
 # Work Breakdown Structure -- Pipeline Engine Implementation
 
-> Version: 1.2.0
-> Date: 2026-02-16
+> Version: 2.0.0
+> Date: 2026-02-17
 > Author: PMO-001
 > Status: ACTIVE
 > Objective: Implement the full pipeline engine per `architect/architecture.md`
-> Scope: Phase 1 (Foundation), Phase 2 (Integration), Phase 3 (Polish), Phase 4 (Live Validation)
+> Scope: Phase 1 (Foundation), Phase 2 (Integration), Phase 3 (Polish), Phase 4 (Live Validation), Phase 5 (Governance & Bootstrap)
 
 ---
 
@@ -36,17 +36,25 @@ IMPL-0: Pipeline Engine Implementation
 |   +-- WP-3.4: Phase 3 QA Review + Final Verdict         [COMPLETED -- QA PASS]
 |
 +-- IMPL-4: Phase 4 -- Live Validation (P0 Final Acceptance)  [COMPLETED]
-    +-- WP-4.1: Pipeline live validation ("Spring Gala")  [COMPLETED -- "万家灯火" GDD delivered]
+|   +-- WP-4.1: Pipeline live validation ("Spring Gala")  [COMPLETED -- "万家灯火" GDD delivered]
+|
++-- IMPL-5: Phase 5 -- Governance & Bootstrap (P1)            [COMPLETED]
+    +-- WP-5.1: Compliance auditor architecture eval           [COMPLETED -- ARCH-001]
+    +-- WP-5.2: auditor SlotType YAML                          [COMPLETED -- ARCH-001]
+    +-- WP-5.3: compliance-audit pipeline template             [COMPLETED -- ARCH-001]
+    +-- WP-5.4: Bootstrap defaults/ directory design           [COMPLETED -- ARCH-001]
+    +-- WP-5.5: Observer + AUDITING state implementation       [COMPLETED -- ENG-001, 312 tests, 97% cov]
+    +-- WP-5.6: QA verify Phase 5 changes                     [COMPLETED -- QA PASS]
 ```
 
-100% Rule: All 8 engine modules + templates + tests + reviews + live validation = 100% of project scope.
+100% Rule: All 8 engine modules + templates + tests + reviews + live validation + governance + bootstrap = 100% of project scope.
 
-### Progress Summary (FINAL -- 2026-02-16)
+### Progress Summary (2026-02-17)
 
 | Status | Count | Work Packages |
 |--------|-------|---------------|
-| COMPLETED | 16 | ALL: WP-1.1 thru WP-1.7, WP-2.1 thru WP-2.4, WP-3.1 thru WP-3.4, WP-4.1 |
-| **Total** | **16** | **Completion: 16/16 (100%) -- PROJECT COMPLETE** |
+| COMPLETED | 22 | ALL: WP-1.1--1.7, WP-2.1--2.4, WP-3.1--3.4, WP-4.1, WP-5.1--5.6 |
+| **Total** | **22** | **Completion: 22/22 (100%) -- PROJECT COMPLETE** |
 
 **ENG-001 metrics (per-module breakdown from Engineer):**
 
@@ -588,57 +596,224 @@ Run the completed pipeline engine on a real project: **"Design a mini-game suita
 
 ---
 
-## 6. Dependency Matrix
+## 6. Phase 5: Governance & Bootstrap (P1)
+
+### WP-5.1: Compliance Auditor Architecture Evaluation [COMPLETED]
+
+| Field | Value |
+|-------|-------|
+| **ID** | WP-5.1 |
+| **Role** | ARCH-001 (Architect) |
+| **Slot Type** | designer |
+| **Priority** | P1 |
+| **Depends On** | WP-4.1 (project baseline complete) |
+| **Blocks** | WP-5.5 (ENG implementation) |
+| **Status** | COMPLETED |
+
+**Inputs:**
+- `architect/architecture.md` (current architecture)
+- HR-001 compliance auditor research (CMMI PPQA framework)
+- Three-party discussion (HR + ARCH + PMO)
+
+**Outputs:**
+- `architect/evaluations/compliance-auditor-architecture-eval.md` (architecture evaluation)
+
+**Key Decisions:**
+- **Post-pipeline batch model** (NOT real-time hooks): Auditor runs after pipeline COMPLETED as independent step
+- **AUDITING state**: New state between COMPLETED and ARCHIVED (~15 LOC in models.py)
+- **Read-only access**: Auditor reads REVIEW.yaml + gate reports, produces Process Audit Report
+- **No veto power**: Observe and report only, CEO decides action
+- **SlotType**: `auditor` (process-focused, distinct from SEC-001's `security_specialist`)
+- **Independence**: Audits ALL roles including QA and PMO
+
+---
+
+### WP-5.2: auditor SlotType YAML
+
+| Field | Value |
+|-------|-------|
+| **ID** | WP-5.2 |
+| **Role** | ARCH-001 (Architect) |
+| **Slot Type** | designer |
+| **Priority** | P1 |
+| **Depends On** | WP-5.1 (architecture evaluation) |
+| **Blocks** | WP-5.3 (template needs this SlotType) |
+
+**Outputs:**
+- `specs/pipelines/slot-types/auditor.yaml` (updated or new, process-focused)
+
+**Acceptance Criteria:**
+- category: governance (process-focused, NOT security)
+- required_capabilities: process_audit, artifact_validation, noncompliance_tracking, trend_analysis, objective_evaluation
+- Follows existing SlotType YAML schema
+- Zero conflict with SEC-001's `security_specialist` SlotType
+
+---
+
+### WP-5.3: compliance-audit Pipeline Template
+
+| Field | Value |
+|-------|-------|
+| **ID** | WP-5.3 |
+| **Role** | ARCH-001 (Architect) |
+| **Slot Type** | designer |
+| **Priority** | P1 |
+| **Depends On** | WP-5.2 (compliance-auditor SlotType) |
+| **Blocks** | None |
+
+**Outputs:**
+- `specs/pipelines/templates/compliance-audit.yaml`
+
+**Acceptance Criteria:**
+- Slot-based v2.0 format (consistent with other 5 templates)
+- Slots: collect-evidence -> analyze-compliance -> recommend-improvements -> ceo-review
+- Uses `compliance-auditor` and `approver` SlotTypes
+- Explicit `data_flow[]` edges
+- Passes PipelineValidator.validate()
+
+---
+
+### WP-5.4: Bootstrap defaults/ Directory Design
+
+| Field | Value |
+|-------|-------|
+| **ID** | WP-5.4 |
+| **Role** | ARCH-001 (Architect) |
+| **Slot Type** | designer |
+| **Priority** | P1 |
+| **Depends On** | None |
+| **Blocks** | None |
+
+**Outputs:**
+- `architect/bootstrap-design.md` (design document)
+- `defaults/` directory structure specification
+
+**Acceptance Criteria:**
+- Defines which files ship as defaults (HR prompt only as built-in role, per HR-001 research)
+- HR prompt parameterization mechanism ({{PROJECT_CONTEXT}}, {{MUST_READ_FILES}})
+- Defines initialization flow (how defaults/ content gets into project directory)
+- File organization: defaults/agents/, defaults/slot-types/, defaults/templates/
+- Clear first-use UX: user provides project brief -> system fills HR prompt params -> HR starts
+- Bootstrap sequence: HR -> recruit Architect -> Architect designs topology -> HR recruits remaining roles
+
+---
+
+### WP-5.5: Implement AUDITING State + Post-Pipeline Step
+
+| Field | Value |
+|-------|-------|
+| **ID** | WP-5.5 |
+| **Role** | ENG-001 (Engineer) |
+| **Slot Type** | implementer |
+| **Priority** | P1 |
+| **Depends On** | WP-5.1 (ARCH architecture eval) |
+| **Blocks** | WP-5.6 (QA verification) |
+
+**Inputs:**
+- `architect/evaluations/compliance-auditor-architecture-eval.md` (from WP-5.1)
+- Current engine source code
+
+**Outputs:**
+- Updated `engineer/src/pipeline/models.py` (+~15 LOC: AUDITING state in PipelineStatus)
+- Updated `engineer/src/pipeline/runner.py` (post-pipeline AUDITING step)
+- Updated `engineer/src/pipeline/nl_matcher.py` (+~5 LOC: compliance-audit keywords)
+- New/updated tests
+- DELIVERY.yaml
+
+**Acceptance Criteria:**
+- AUDITING state added between COMPLETED and ARCHIVED in PipelineStatus
+- Post-pipeline step mechanism in runner.py
+- All existing 270 tests still pass (backward compatibility)
+- New tests for AUDITING state transitions
+- Coverage >= 97% maintained
+- DELIVERY.yaml with checksums
+
+---
+
+### WP-5.6: QA Verify AUDITING State Changes
+
+| Field | Value |
+|-------|-------|
+| **ID** | WP-5.6 |
+| **Role** | QA-001 (QA Engineer) |
+| **Slot Type** | reviewer |
+| **Priority** | P1 |
+| **Depends On** | WP-5.5 (ENG implementation) |
+| **Blocks** | None |
+
+**Inputs:**
+- ENG-001's DELIVERY.yaml for Phase 5
+- Updated source files
+
+**Outputs:**
+- `qa/REVIEW.yaml` (Phase 5)
+
+**Acceptance Criteria:**
+- All tests pass independently
+- Backward compatibility verified (existing 270 tests unaffected)
+- AUDITING state transitions work correctly
+- Post-pipeline step mechanism verified
+- Cross-validation with Engineer's metrics
+- REVIEW.yaml with verdict
+
+---
+
+## 7. Dependency Matrix
 
 ```
-WP-1.1 (models)         --> [no deps]
-WP-1.2 (loader)         --> WP-1.1
-WP-1.3 (validator)      --> WP-1.1
-WP-1.4 (state)          --> WP-1.1
-WP-1.5 (slot_registry)  --> WP-1.1
-WP-1.6 (gate_checker)   --> WP-1.1, WP-1.4
-WP-1.7 (Phase 1 QA)     --> WP-1.1, WP-1.2, WP-1.3, WP-1.4, WP-1.5, WP-1.6
-WP-2.1 (runner)         --> WP-1.7
-WP-2.2 (templates)      --> WP-1.7
-WP-2.3 (spec updates)   --> WP-1.7
-WP-2.4 (Phase 2 QA)     --> WP-2.1, WP-2.2, WP-2.3
-WP-3.1 (nl_matcher)     --> WP-2.4
-WP-3.2 (__init__)       --> WP-3.1
-WP-3.3 (integration)    --> WP-3.2, WP-2.2
-WP-3.4 (Final QA)       --> WP-3.1, WP-3.2, WP-3.3
-WP-4.1 (live validation)--> WP-3.4
+WP-1.1 (models)           --> [no deps]
+WP-1.2 (loader)           --> WP-1.1
+WP-1.3 (validator)        --> WP-1.1
+WP-1.4 (state)            --> WP-1.1
+WP-1.5 (slot_registry)    --> WP-1.1
+WP-1.6 (gate_checker)     --> WP-1.1, WP-1.4
+WP-1.7 (Phase 1 QA)       --> WP-1.1, WP-1.2, WP-1.3, WP-1.4, WP-1.5, WP-1.6
+WP-2.1 (runner)           --> WP-1.7
+WP-2.2 (templates)        --> WP-1.7
+WP-2.3 (spec updates)     --> WP-1.7
+WP-2.4 (Phase 2 QA)       --> WP-2.1, WP-2.2, WP-2.3
+WP-3.1 (nl_matcher)       --> WP-2.4
+WP-3.2 (__init__)          --> WP-3.1
+WP-3.3 (integration)      --> WP-3.2, WP-2.2
+WP-3.4 (Final QA)         --> WP-3.1, WP-3.2, WP-3.3
+WP-4.1 (live validation)  --> WP-3.4
+WP-5.1 (arch eval)        --> WP-4.1               [COMPLETED]
+WP-5.2 (auditor SlotType) --> WP-5.1
+WP-5.3 (CA template)      --> WP-5.2
+WP-5.4 (bootstrap design) --> [no deps]
+WP-5.5 (AUDITING impl)    --> WP-5.1
+WP-5.6 (Phase 5 QA)       --> WP-5.5
 ```
 
-### Critical Path
+### Critical Path (Phase 5)
 
 ```
-WP-1.1 -> WP-1.4 -> WP-1.6 -> WP-1.7 -> WP-2.1 -> WP-2.4 -> WP-3.1 -> WP-3.2 -> WP-3.3 -> WP-3.4 -> WP-4.1
+WP-5.1 (ARCH design) -> WP-5.5 (ENG implement) -> WP-5.6 (QA verify)
 ```
 
-(11 work packages on the critical path)
+(3 work packages on Phase 5 critical path)
 
 ### Parallelism Opportunities
 
-**Within Phase 1** (after WP-1.1 completes):
-- WP-1.2, WP-1.3, WP-1.4, WP-1.5 can all run in parallel (all depend only on models.py)
-- WP-1.6 must wait for WP-1.4 (needs state.py)
-
-**Within Phase 2** (after WP-1.7 passes):
-- WP-2.1, WP-2.2, WP-2.3 can run in parallel (ENG-001 does runner, ARCH-001 does templates + spec updates)
-
----
-
-## 7. Resource Allocation Summary
-
-| Agent | Phase 1 WPs | Phase 2 WPs | Phase 3 WPs | Total |
-|-------|-------------|-------------|-------------|-------|
-| ENG-001 | WP-1.1 through WP-1.6 (6) | WP-2.1 (1) | WP-3.1, WP-3.2, WP-3.3 (3) | 10 |
-| QA-001 | WP-1.7 (1) | WP-2.4 (1) | WP-3.4 (1) | 3 |
-| ARCH-001 | -- | WP-2.2, WP-2.3 (2) | -- | 2 |
+**Within Phase 5** (all start immediately):
+- WP-5.1, WP-5.2, WP-5.4 can run in parallel (all ARCH-001, no dependencies between them)
+- WP-5.3 waits for WP-5.2 (needs compliance-auditor SlotType)
+- WP-5.5 waits for WP-5.1 (needs design doc)
+- WP-5.6 waits for WP-5.5 (needs implementation)
 
 ---
 
-## 8. Estimated Test Counts
+## 8. Resource Allocation Summary
+
+| Agent | Phase 1 | Phase 2 | Phase 3 | Phase 4 | Phase 5 | Total |
+|-------|---------|---------|---------|---------|---------|-------|
+| ENG-001 | WP-1.1--1.6 (6) | WP-2.1 (1) | WP-3.1--3.3 (3) | -- | WP-5.5 (1) | 11 |
+| QA-001 | WP-1.7 (1) | WP-2.4 (1) | WP-3.4 (1) | -- | WP-5.6 (1) | 4 |
+| ARCH-001 | -- | WP-2.2--2.3 (2) | -- | -- | WP-5.1--5.4 (4) | 6 |
+
+---
+
+## 9. Estimated Test Counts
 
 | Work Package | Module | Est. Tests |
 |-------------|--------|------------|
@@ -651,4 +826,5 @@ WP-1.1 -> WP-1.4 -> WP-1.6 -> WP-1.7 -> WP-2.1 -> WP-2.4 -> WP-3.1 -> WP-3.2 -> 
 | WP-2.1 | runner.py | ~12 |
 | WP-3.1 | nl_matcher.py | ~10 |
 | WP-3.3 | integration tests | ~10+ |
-| **Total** | | **~113+** |
+| WP-5.5 | observer hooks | ~10 |
+| **Total** | | **~123+** |

@@ -99,6 +99,22 @@ def templates_dir(tmp_path):
         )
     )
 
+    # Compliance audit template
+    (d / "compliance-audit.yaml").write_text(
+        yaml.dump(
+            {
+                "pipeline": {
+                    "id": "compliance-audit",
+                    "name": "Compliance Audit",
+                    "description": "PPQA compliance audit pipeline",
+                    "version": "1.0.0",
+                    "created_by": "test",
+                    "created_at": "2026-01-01",
+                }
+            }
+        )
+    )
+
     return d
 
 
@@ -114,7 +130,7 @@ def matcher(templates_dir):
 
 class TestTemplateLoading:
     def test_loads_all_templates(self, matcher):
-        assert len(matcher._templates) == 5
+        assert len(matcher._templates) == 6
 
     def test_template_ids(self, matcher):
         assert "standard-feature" in matcher._templates
@@ -332,3 +348,49 @@ class TestTokenize:
         tokens = NLMatcher._tokenize("hello, world! foo-bar")
         assert "hello" in tokens
         assert "world" in tokens
+
+
+# ===================================================================
+# match -- Compliance audit
+# ===================================================================
+
+
+class TestMatchComplianceAudit:
+    def test_compliance_audit_english(self, matcher):
+        results = matcher.match("Run a compliance audit on the process adherence")
+        top_ids = [r.template_id for r in results]
+        assert "compliance-audit" in top_ids
+
+    def test_compliance_audit_chinese(self, matcher):
+        results = matcher.match("进行合规审计检查流程合规性")
+        top_ids = [r.template_id for r in results]
+        assert "compliance-audit" in top_ids
+
+    def test_ppqa_keyword(self, matcher):
+        results = matcher.match("Start ppqa noncompliance review process")
+        top_ids = [r.template_id for r in results]
+        assert "compliance-audit" in top_ids
+
+    def test_compliance_template_needs_fixture(self, tmp_path):
+        """compliance-audit keywords match even without a template YAML on disk."""
+        d = tmp_path / "templates"
+        d.mkdir()
+        # Create a compliance audit template
+        (d / "compliance-audit.yaml").write_text(
+            yaml.dump(
+                {
+                    "pipeline": {
+                        "id": "compliance-audit",
+                        "name": "Compliance Audit",
+                        "description": "PPQA compliance audit pipeline",
+                        "version": "1.0.0",
+                        "created_by": "test",
+                        "created_at": "2026-01-01",
+                    }
+                }
+            )
+        )
+        m = NLMatcher(str(d))
+        results = m.match("Run compliance audit on process adherence")
+        assert len(results) > 0
+        assert results[0].template_id == "compliance-audit"

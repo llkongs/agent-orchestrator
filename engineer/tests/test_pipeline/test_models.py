@@ -1,7 +1,7 @@
 """Tests for pipeline.models -- all enums, dataclasses, and state containers."""
 
 import pytest
-from dataclasses import FrozenInstanceError, asdict, fields
+from dataclasses import FrozenInstanceError, asdict
 
 from src.pipeline.models import (
     AgentCapabilities,
@@ -16,6 +16,7 @@ from src.pipeline.models import (
     GateCheckResult,
     Parameter,
     Pipeline,
+    PipelineObserver,
     PipelineState,
     PipelineStatus,
     Slot,
@@ -58,13 +59,13 @@ class TestPipelineStatus:
     def test_all_values(self):
         expected = {
             "loaded", "validated", "running", "paused",
-            "completed", "failed", "aborted",
+            "completed", "failed", "aborted", "auditing",
         }
         actual = {s.value for s in PipelineStatus}
         assert actual == expected
 
     def test_member_count(self):
-        assert len(PipelineStatus) == 7
+        assert len(PipelineStatus) == 8
 
 
 class TestArtifactType:
@@ -519,3 +520,66 @@ class TestSlotAssignment:
         )
         sa.reason = "Updated reason"
         assert sa.reason == "Updated reason"
+
+
+# ---------------------------------------------------------------------------
+# PipelineObserver ABC tests
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineObserver:
+    def test_cannot_instantiate_abstract(self):
+        """PipelineObserver is abstract and cannot be instantiated directly."""
+        with pytest.raises(TypeError):
+            PipelineObserver()
+
+    def test_subclass_must_implement_all(self):
+        """Partial implementation still raises TypeError on instantiation."""
+        class PartialObserver(PipelineObserver):
+            def on_pipeline_started(self, pipeline_id, state):
+                pass
+
+        with pytest.raises(TypeError):
+            PartialObserver()
+
+    def test_complete_subclass_instantiates(self):
+        """A complete subclass can be instantiated."""
+        class FullObserver(PipelineObserver):
+            def on_pipeline_started(self, pipeline_id, state):
+                pass
+            def on_pipeline_completed(self, pipeline_id, state):
+                pass
+            def on_pipeline_failed(self, pipeline_id, state, error):
+                pass
+            def on_slot_started(self, pipeline_id, slot_id, agent_id):
+                pass
+            def on_slot_completed(self, pipeline_id, slot_id):
+                pass
+            def on_slot_failed(self, pipeline_id, slot_id, error):
+                pass
+            def on_gate_check_completed(self, pipeline_id, slot_id, gate_type, results):
+                pass
+            def on_status_changed(self, pipeline_id, old_status, new_status):
+                pass
+
+        obs = FullObserver()
+        assert isinstance(obs, PipelineObserver)
+
+    def test_abstract_method_count(self):
+        """PipelineObserver defines exactly 8 abstract methods."""
+        abstract_methods = PipelineObserver.__abstractmethods__
+        assert len(abstract_methods) == 8
+
+    def test_abstract_method_names(self):
+        """PipelineObserver defines the expected abstract method names."""
+        expected = {
+            "on_pipeline_started",
+            "on_pipeline_completed",
+            "on_pipeline_failed",
+            "on_slot_started",
+            "on_slot_completed",
+            "on_slot_failed",
+            "on_gate_check_completed",
+            "on_status_changed",
+        }
+        assert PipelineObserver.__abstractmethods__ == expected

@@ -31,6 +31,7 @@ from pipeline.models import (
     GateCheckResult,
     Parameter,
     Pipeline,
+    PipelineObserver,
     PipelineState,
     PipelineStatus,
     Slot,
@@ -42,6 +43,7 @@ from pipeline.models import (
     ValidationLevel,
 )
 from pipeline.nl_matcher import NLMatcher, TemplateMatch
+from pipeline.observer import ComplianceObserver
 from pipeline.runner import PipelineExecutionError, PipelineRunner
 from pipeline.slot_registry import SlotRegistry, SlotTypeNotFoundError
 from pipeline.state import PipelineStateTracker
@@ -69,7 +71,10 @@ __all__ = [
     "SlotStatus",
     "SlotTask",
     "SlotTypeDefinition",
+    "PipelineObserver",
     "ValidationLevel",
+    # Observer
+    "ComplianceObserver",
     # Loader
     "PipelineLoader",
     "PipelineLoadError",

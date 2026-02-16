@@ -3,17 +3,13 @@
 import pytest
 import yaml
 
-from src.pipeline.models import (
-    ArtifactOutput,
-    DataFlowEdge,
-    Gate,
-    Pipeline,
+from pipeline.models import (
+    PipelineObserver,
     PipelineStatus,
-    Slot,
     SlotStatus,
-    SlotTask,
 )
-from src.pipeline.runner import PipelineExecutionError, PipelineRunner
+from pipeline.observer import ComplianceObserver
+from pipeline.runner import PipelineExecutionError, PipelineRunner
 
 
 @pytest.fixture
@@ -458,3 +454,309 @@ class TestFindSlot:
         pipeline, state = runner.prepare(pipeline_yaml, {})
         with pytest.raises(KeyError, match="nonexistent"):
             PipelineRunner._find_slot(pipeline, "nonexistent")
+
+
+# ===================================================================
+# Observer integration
+# ===================================================================
+
+
+class _RecordingObserver(PipelineObserver):
+    """Captures lifecycle events for test assertions."""
+
+    def __init__(self):
+        self.events = []
+
+    def on_pipeline_started(self, pipeline_id, state):
+        self.events.append(("pipeline_started", pipeline_id))
+
+    def on_pipeline_completed(self, pipeline_id, state):
+        self.events.append(("pipeline_completed", pipeline_id))
+
+    def on_pipeline_failed(self, pipeline_id, state, error):
+        self.events.append(("pipeline_failed", pipeline_id, error))
+
+    def on_slot_started(self, pipeline_id, slot_id, agent_id):
+        self.events.append(("slot_started", pipeline_id, slot_id, agent_id))
+
+    def on_slot_completed(self, pipeline_id, slot_id):
+        self.events.append(("slot_completed", pipeline_id, slot_id))
+
+    def on_slot_failed(self, pipeline_id, slot_id, error):
+        self.events.append(("slot_failed", pipeline_id, slot_id, error))
+
+    def on_gate_check_completed(self, pipeline_id, slot_id, gate_type, results):
+        self.events.append(("gate_check", pipeline_id, slot_id, gate_type))
+
+    def on_status_changed(self, pipeline_id, old_status, new_status):
+        self.events.append(("status_changed", pipeline_id, old_status, new_status))
+
+
+class _FailingObserver(PipelineObserver):
+    """Observer that raises on every method -- tests error isolation."""
+
+    def on_pipeline_started(self, pipeline_id, state):
+        raise RuntimeError("boom")
+
+    def on_pipeline_completed(self, pipeline_id, state):
+        raise RuntimeError("boom")
+
+    def on_pipeline_failed(self, pipeline_id, state, error):
+        raise RuntimeError("boom")
+
+    def on_slot_started(self, pipeline_id, slot_id, agent_id):
+        raise RuntimeError("boom")
+
+    def on_slot_completed(self, pipeline_id, slot_id):
+        raise RuntimeError("boom")
+
+    def on_slot_failed(self, pipeline_id, slot_id, error):
+        raise RuntimeError("boom")
+
+    def on_gate_check_completed(self, pipeline_id, slot_id, gate_type, results):
+        raise RuntimeError("boom")
+
+    def on_status_changed(self, pipeline_id, old_status, new_status):
+        raise RuntimeError("boom")
+
+
+@pytest.fixture
+def recording_observer():
+    return _RecordingObserver()
+
+
+@pytest.fixture
+def runner_with_observer(project_dirs, recording_observer):
+    """PipelineRunner with a recording observer attached."""
+    r = PipelineRunner(
+        project_root=str(project_dirs),
+        templates_dir=str(project_dirs / "templates"),
+        state_dir=str(project_dirs / "state" / "active"),
+        slot_types_dir=str(project_dirs / "slot-types"),
+        agents_dir=str(project_dirs / "agents"),
+        observers=[recording_observer],
+    )
+    return r
+
+
+class TestObserverIntegration:
+    def test_begin_slot_fires_events(
+        self, runner_with_observer, pipeline_yaml, recording_observer
+    ):
+        pipeline, state = runner_with_observer.prepare(pipeline_yaml, {})
+        slot = pipeline.slots[0]
+        runner_with_observer.begin_slot(slot, pipeline, state, agent_id="ARCH-001")
+
+        event_types = [e[0] for e in recording_observer.events]
+        assert "gate_check" in event_types
+        assert "status_changed" in event_types
+        assert "pipeline_started" in event_types
+        assert "slot_started" in event_types
+
+    def test_complete_slot_fires_events(
+        self, runner_with_observer, pipeline_yaml, recording_observer
+    ):
+        pipeline, state = runner_with_observer.prepare(pipeline_yaml, {})
+        state = runner_with_observer.begin_slot(
+            pipeline.slots[0], pipeline, state
+        )
+        recording_observer.events.clear()
+        runner_with_observer.complete_slot("slot-design", pipeline, state)
+
+        event_types = [e[0] for e in recording_observer.events]
+        assert "gate_check" in event_types
+        assert "slot_completed" in event_types
+
+    def test_complete_all_fires_pipeline_completed(
+        self, runner_with_observer, pipeline_yaml, recording_observer
+    ):
+        pipeline, state = runner_with_observer.prepare(pipeline_yaml, {})
+        state = runner_with_observer.begin_slot(
+            pipeline.slots[0], pipeline, state
+        )
+        state = runner_with_observer.complete_slot("slot-design", pipeline, state)
+        state = runner_with_observer.begin_slot(
+            pipeline.slots[1], pipeline, state
+        )
+        recording_observer.events.clear()
+        runner_with_observer.complete_slot("slot-implement", pipeline, state)
+
+        event_types = [e[0] for e in recording_observer.events]
+        assert "pipeline_completed" in event_types
+        assert "status_changed" in event_types
+
+    def test_fail_slot_fires_events(
+        self, runner_with_observer, pipeline_yaml, recording_observer
+    ):
+        pipeline, state = runner_with_observer.prepare(pipeline_yaml, {})
+        runner_with_observer.fail_slot("slot-design", "agent crashed", state)
+
+        event_types = [e[0] for e in recording_observer.events]
+        assert "slot_failed" in event_types
+
+    def test_fail_all_fires_pipeline_failed(
+        self, runner_with_observer, pipeline_yaml, recording_observer
+    ):
+        pipeline, state = runner_with_observer.prepare(pipeline_yaml, {})
+        state = runner_with_observer.fail_slot("slot-design", "err", state)
+        recording_observer.events.clear()
+        runner_with_observer.fail_slot("slot-implement", "err", state)
+
+        event_types = [e[0] for e in recording_observer.events]
+        assert "pipeline_failed" in event_types
+
+    def test_add_observer_after_init(self, runner, pipeline_yaml):
+        obs = _RecordingObserver()
+        runner.add_observer(obs)
+        pipeline, state = runner.prepare(pipeline_yaml, {})
+        runner.begin_slot(pipeline.slots[0], pipeline, state)
+        assert len(obs.events) > 0
+
+    def test_multiple_observers_all_notified(self, project_dirs, pipeline_yaml):
+        obs1 = _RecordingObserver()
+        obs2 = _RecordingObserver()
+        r = PipelineRunner(
+            project_root=str(project_dirs),
+            templates_dir=str(project_dirs / "templates"),
+            state_dir=str(project_dirs / "state" / "active"),
+            slot_types_dir=str(project_dirs / "slot-types"),
+            agents_dir=str(project_dirs / "agents"),
+            observers=[obs1, obs2],
+        )
+        pipeline, state = r.prepare(pipeline_yaml, {})
+        r.begin_slot(pipeline.slots[0], pipeline, state)
+        assert len(obs1.events) > 0
+        assert len(obs2.events) > 0
+        assert len(obs1.events) == len(obs2.events)
+
+
+class TestObserverErrorIsolation:
+    def test_failing_observer_does_not_block_execution(
+        self, project_dirs, pipeline_yaml
+    ):
+        """A broken observer must not prevent pipeline operations."""
+        failing = _FailingObserver()
+        recording = _RecordingObserver()
+        r = PipelineRunner(
+            project_root=str(project_dirs),
+            templates_dir=str(project_dirs / "templates"),
+            state_dir=str(project_dirs / "state" / "active"),
+            slot_types_dir=str(project_dirs / "slot-types"),
+            agents_dir=str(project_dirs / "agents"),
+            observers=[failing, recording],
+        )
+        pipeline, state = r.prepare(pipeline_yaml, {})
+        state = r.begin_slot(pipeline.slots[0], pipeline, state)
+        # The pipeline should continue despite the failing observer
+        assert state.slots["slot-design"].status == SlotStatus.IN_PROGRESS
+        # The recording observer after the failing one still got notified
+        assert len(recording.events) > 0
+
+    def test_failing_observer_does_not_block_complete(
+        self, project_dirs, pipeline_yaml
+    ):
+        failing = _FailingObserver()
+        r = PipelineRunner(
+            project_root=str(project_dirs),
+            templates_dir=str(project_dirs / "templates"),
+            state_dir=str(project_dirs / "state" / "active"),
+            slot_types_dir=str(project_dirs / "slot-types"),
+            agents_dir=str(project_dirs / "agents"),
+            observers=[failing],
+        )
+        pipeline, state = r.prepare(pipeline_yaml, {})
+        state = r.begin_slot(pipeline.slots[0], pipeline, state)
+        state = r.complete_slot("slot-design", pipeline, state)
+        assert state.slots["slot-design"].status == SlotStatus.COMPLETED
+
+
+class TestComplianceObserverWithRunner:
+    def test_compliance_observer_logs_full_lifecycle(
+        self, project_dirs, pipeline_yaml, tmp_path
+    ):
+        """End-to-end: ComplianceObserver writes events for a full pipeline run."""
+        log_dir = tmp_path / "compliance-logs"
+        obs = ComplianceObserver(str(log_dir))
+        r = PipelineRunner(
+            project_root=str(project_dirs),
+            templates_dir=str(project_dirs / "templates"),
+            state_dir=str(project_dirs / "state" / "active"),
+            slot_types_dir=str(project_dirs / "slot-types"),
+            agents_dir=str(project_dirs / "agents"),
+            observers=[obs],
+        )
+        pipeline, state = r.prepare(pipeline_yaml, {})
+        state = r.begin_slot(pipeline.slots[0], pipeline, state, agent_id="ARCH-001")
+        state = r.complete_slot("slot-design", pipeline, state)
+        state = r.begin_slot(pipeline.slots[1], pipeline, state, agent_id="ENG-001")
+        state = r.complete_slot("slot-implement", pipeline, state)
+
+        log_path = log_dir / "test-pipeline.events.yaml"
+        assert log_path.exists()
+        content = log_path.read_text(encoding="utf-8")
+        events = list(yaml.safe_load_all(content))
+        event_types = [e["event"] for e in events]
+        assert "pipeline_started" in event_types
+        assert "slot_started" in event_types
+        assert "slot_completed" in event_types
+        assert "pipeline_completed" in event_types
+
+
+# ===================================================================
+# start_auditing
+# ===================================================================
+
+
+class TestStartAuditing:
+    def test_completed_to_auditing(self, runner, pipeline_yaml):
+        pipeline, state = runner.prepare(pipeline_yaml, {})
+        # Complete all slots
+        state = runner.begin_slot(pipeline.slots[0], pipeline, state)
+        state = runner.complete_slot("slot-design", pipeline, state)
+        state = runner.begin_slot(pipeline.slots[1], pipeline, state)
+        state = runner.complete_slot("slot-implement", pipeline, state)
+        assert state.status == PipelineStatus.COMPLETED
+
+        state = runner.start_auditing(state)
+        assert state.status == PipelineStatus.AUDITING
+
+    def test_auditing_not_from_running(self, runner, pipeline_yaml):
+        pipeline, state = runner.prepare(pipeline_yaml, {})
+        state = runner.begin_slot(pipeline.slots[0], pipeline, state)
+        assert state.status == PipelineStatus.RUNNING
+        with pytest.raises(PipelineExecutionError, match="expected 'completed'"):
+            runner.start_auditing(state)
+
+    def test_auditing_not_from_loaded(self, runner, pipeline_yaml):
+        pipeline, state = runner.prepare(pipeline_yaml, {})
+        assert state.status == PipelineStatus.LOADED
+        with pytest.raises(PipelineExecutionError, match="expected 'completed'"):
+            runner.start_auditing(state)
+
+    def test_auditing_not_from_failed(self, runner, pipeline_yaml):
+        pipeline, state = runner.prepare(pipeline_yaml, {})
+        state = runner.fail_slot("slot-design", "err", state)
+        state = runner.fail_slot("slot-implement", "err", state)
+        assert state.status == PipelineStatus.FAILED
+        with pytest.raises(PipelineExecutionError, match="expected 'completed'"):
+            runner.start_auditing(state)
+
+    def test_auditing_fires_status_changed(
+        self, runner_with_observer, pipeline_yaml, recording_observer
+    ):
+        pipeline, state = runner_with_observer.prepare(pipeline_yaml, {})
+        state = runner_with_observer.begin_slot(pipeline.slots[0], pipeline, state)
+        state = runner_with_observer.complete_slot("slot-design", pipeline, state)
+        state = runner_with_observer.begin_slot(pipeline.slots[1], pipeline, state)
+        state = runner_with_observer.complete_slot("slot-implement", pipeline, state)
+        recording_observer.events.clear()
+
+        runner_with_observer.start_auditing(state)
+
+        event_types = [e[0] for e in recording_observer.events]
+        assert "status_changed" in event_types
+        status_event = [
+            e for e in recording_observer.events if e[0] == "status_changed"
+        ][0]
+        assert status_event[2] == PipelineStatus.COMPLETED
+        assert status_event[3] == PipelineStatus.AUDITING

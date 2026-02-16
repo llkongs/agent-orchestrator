@@ -215,6 +215,7 @@
 |------|----------|----------|--------|-------|
 | Game Designer / Creative Director | GD-001 | P0 | PROMPT_READY | `agents/04-game-designer-agent.md` delivered. Awaiting spawn by Team Lead. |
 | Cultural Entertainment Researcher | CER-001 | P0 | PROMPT_READY | `agents/05-cultural-researcher-agent.md` delivered. Awaiting spawn by Team Lead. |
+| Compliance Auditor (PPQA) | COMP-001 | P2 | PROMPT_READY | `agents/07-compliance-auditor-agent.md` delivered. 425 lines, 10/10 quality gate. SlotType naming pending ARCH confirmation (compliance-auditor vs auditor). |
 | DevOps/Packaging | DEVOPS-001 | P2 | NOT_RECRUITED | Not needed until post-Phase 3 |
 
 ---

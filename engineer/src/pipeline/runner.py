@@ -7,12 +7,14 @@ module that instantiates and wires together all other modules.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pipeline.gate_checker import GateChecker
 from pipeline.loader import PipelineLoader
 from pipeline.models import (
     Pipeline,
+    PipelineObserver,
     PipelineState,
     PipelineStatus,
     Slot,
@@ -21,6 +23,8 @@ from pipeline.models import (
 from pipeline.slot_registry import SlotRegistry
 from pipeline.state import PipelineStateTracker
 from pipeline.validator import PipelineValidator
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineExecutionError(Exception):
@@ -46,6 +50,8 @@ class PipelineRunner:
         state_dir: str,
         slot_types_dir: str,
         agents_dir: str,
+        *,
+        observers: list[PipelineObserver] | None = None,
     ) -> None:
         self._project_root = project_root
         self._loader = PipelineLoader()
@@ -53,6 +59,23 @@ class PipelineRunner:
         self._state_tracker = PipelineStateTracker(state_dir)
         self._registry = SlotRegistry(slot_types_dir, agents_dir)
         self._gate_checker = GateChecker(project_root)
+        self._observers: list[PipelineObserver] = observers or []
+
+    def add_observer(self, observer: PipelineObserver) -> None:
+        """Register an observer for pipeline events."""
+        self._observers.append(observer)
+
+    def _notify(self, method: str, *args: Any, **kwargs: Any) -> None:
+        """Dispatch an event to all observers.  Never raises."""
+        for obs in self._observers:
+            try:
+                getattr(obs, method)(*args, **kwargs)
+            except Exception:
+                logger.warning(
+                    "Observer %s.%s failed",
+                    type(obs).__name__, method,
+                    exc_info=True,
+                )
 
     # --- Core lifecycle ---
 
@@ -131,11 +154,23 @@ class PipelineRunner:
             Updated PipelineState.
         """
         pre_results = self._gate_checker.check_pre_conditions(slot, state)
+        self._notify(
+            "on_gate_check_completed",
+            state.pipeline_id, slot.id, "pre", pre_results,
+        )
 
         if self._gate_checker.all_passed(pre_results):
             # Update pipeline status to RUNNING if not already
+            old_status = state.status
             if state.status != PipelineStatus.RUNNING:
                 state.status = PipelineStatus.RUNNING
+                self._notify(
+                    "on_status_changed",
+                    state.pipeline_id, old_status, state.status,
+                )
+                self._notify(
+                    "on_pipeline_started", state.pipeline_id, state,
+                )
 
             state = self._state_tracker.update_slot(
                 state,
@@ -144,6 +179,10 @@ class PipelineRunner:
                 agent_id=agent_id,
                 agent_prompt=agent_prompt,
                 pre_check_results=pre_results,
+            )
+            self._notify(
+                "on_slot_started",
+                state.pipeline_id, slot.id, agent_id,
             )
         else:
             failed_conditions = [
@@ -156,6 +195,10 @@ class PipelineRunner:
                 SlotStatus.FAILED,
                 error=error_msg,
                 pre_check_results=pre_results,
+            )
+            self._notify(
+                "on_slot_failed",
+                state.pipeline_id, slot.id, error_msg,
             )
 
         return state
@@ -177,6 +220,10 @@ class PipelineRunner:
         slot = self._find_slot(pipeline, slot_id)
 
         post_results = self._gate_checker.check_post_conditions(slot, state)
+        self._notify(
+            "on_gate_check_completed",
+            state.pipeline_id, slot_id, "post", post_results,
+        )
 
         if self._gate_checker.all_passed(post_results):
             state = self._state_tracker.update_slot(
@@ -184,6 +231,9 @@ class PipelineRunner:
                 slot_id,
                 SlotStatus.COMPLETED,
                 post_check_results=post_results,
+            )
+            self._notify(
+                "on_slot_completed", state.pipeline_id, slot_id,
             )
         else:
             failed_conditions = [
@@ -199,11 +249,22 @@ class PipelineRunner:
                 error=error_msg,
                 post_check_results=post_results,
             )
+            self._notify(
+                "on_slot_failed", state.pipeline_id, slot_id, error_msg,
+            )
 
         # Check if pipeline is complete
         if self._state_tracker.is_complete(state):
+            old_status = state.status
             state.status = PipelineStatus.COMPLETED
             self._state_tracker.save(state)
+            self._notify(
+                "on_status_changed",
+                state.pipeline_id, old_status, state.status,
+            )
+            self._notify(
+                "on_pipeline_completed", state.pipeline_id, state,
+            )
 
         return state
 
@@ -218,11 +279,23 @@ class PipelineRunner:
         state = self._state_tracker.update_slot(
             state, slot_id, SlotStatus.FAILED, error=error
         )
+        self._notify(
+            "on_slot_failed", state.pipeline_id, slot_id, error,
+        )
 
         # Check if all slots are terminal
         if self._state_tracker.is_complete(state):
+            old_status = state.status
             state.status = PipelineStatus.FAILED
             self._state_tracker.save(state)
+            self._notify(
+                "on_status_changed",
+                state.pipeline_id, old_status, state.status,
+            )
+            self._notify(
+                "on_pipeline_failed",
+                state.pipeline_id, state, "All slots in terminal state with failures",
+            )
 
         return state
 
@@ -275,6 +348,32 @@ class PipelineRunner:
             lines.append(f"{status_tag} {slot_id}{agent_info}")
 
         return "\n".join(lines)
+
+    def start_auditing(self, state: PipelineState) -> PipelineState:
+        """Transition a COMPLETED pipeline to AUDITING state.
+
+        This signals that the compliance auditor is reviewing the
+        pipeline run.  Only valid when status is COMPLETED.
+
+        Returns:
+            Updated PipelineState with AUDITING status.
+
+        Raises:
+            PipelineExecutionError: Pipeline is not in COMPLETED state.
+        """
+        if state.status != PipelineStatus.COMPLETED:
+            raise PipelineExecutionError(
+                f"Cannot start auditing: pipeline is '{state.status.value}', "
+                f"expected 'completed'"
+            )
+        old_status = state.status
+        state.status = PipelineStatus.AUDITING
+        self._state_tracker.save(state)
+        self._notify(
+            "on_status_changed",
+            state.pipeline_id, old_status, state.status,
+        )
+        return state
 
     def resume(
         self, state_path: str

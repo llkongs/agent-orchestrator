@@ -114,6 +114,22 @@ _KEYWORD_MAP: dict[str, tuple[float, list[str]]] = {
             "修复",
         ],
     ),
+    "compliance-audit": (
+        1.2,
+        [
+            "compliance",
+            "audit",
+            "process",
+            "adherence",
+            "noncompliance",
+            "ppqa",
+            "合规",
+            "审计",
+            "流程",
+            "合规审查",
+            "过程质量",
+        ],
+    ),
 }
 
 
