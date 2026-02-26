@@ -87,13 +87,13 @@ class TestConditionType:
         expected = {
             "file_exists", "slot_completed", "approval",
             "artifact_valid", "delivery_valid", "review_valid",
-            "tests_pass", "custom",
+            "tests_pass", "checksum_match", "custom",
         }
         actual = {c.value for c in ConditionType}
         assert actual == expected
 
     def test_member_count(self):
-        assert len(ConditionType) == 8
+        assert len(ConditionType) == 9
 
 
 class TestValidationLevel:

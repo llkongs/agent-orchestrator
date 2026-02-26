@@ -16,6 +16,8 @@ Usage:
     print(runner.get_summary(state))
 """
 
+from pipeline.context_router import ContextRouter
+from pipeline.enforcer import SlotEnforcer, EnforcementRule, EnforcementResult, EnforcementAction
 from pipeline.gate_checker import GateChecker
 from pipeline.loader import PipelineLoader, PipelineLoadError, PipelineParameterError
 from pipeline.models import (
@@ -25,7 +27,10 @@ from pipeline.models import (
     ArtifactType,
     CapabilityMatch,
     ConditionType,
+    ContextItem,
+    ContextTier,
     DataFlowEdge,
+    DeterministicMetrics,
     ExecutionConfig,
     Gate,
     GateCheckResult,
@@ -45,11 +50,21 @@ from pipeline.models import (
 from pipeline.nl_matcher import NLMatcher, TemplateMatch
 from pipeline.observer import ComplianceObserver
 from pipeline.runner import PipelineExecutionError, PipelineRunner
+from pipeline.slot_contract import SlotContractManager, SlotInput, SlotOutputValidation
 from pipeline.slot_registry import SlotRegistry, SlotTypeNotFoundError
-from pipeline.state import PipelineStateTracker
+from pipeline.state import PipelineStateTracker, InvalidTransitionError
 from pipeline.validator import PipelineCycleError, PipelineValidator, ValidationResult
 
 __all__ = [
+    # Context Router
+    "ContextRouter",
+    "ContextItem",
+    "ContextTier",
+    # Enforcer
+    "SlotEnforcer",
+    "EnforcementRule",
+    "EnforcementResult",
+    "EnforcementAction",
     # Models
     "AgentCapabilities",
     "ArtifactOutput",
@@ -58,6 +73,7 @@ __all__ = [
     "CapabilityMatch",
     "ConditionType",
     "DataFlowEdge",
+    "DeterministicMetrics",
     "ExecutionConfig",
     "Gate",
     "GateCheckResult",
@@ -85,6 +101,11 @@ __all__ = [
     "ValidationResult",
     # State
     "PipelineStateTracker",
+    "InvalidTransitionError",
+    # Slot Contract
+    "SlotContractManager",
+    "SlotInput",
+    "SlotOutputValidation",
     # Slot Registry
     "SlotRegistry",
     "SlotTypeNotFoundError",

@@ -73,6 +73,7 @@ class ConditionType(StrEnum):
     DELIVERY_VALID = "delivery_valid"
     REVIEW_VALID = "review_valid"
     TESTS_PASS = "tests_pass"
+    CHECKSUM_MATCH = "checksum_match"
     CUSTOM = "custom"
 
 
@@ -148,6 +149,21 @@ class GateCheckResult:
     passed: bool
     evidence: str  # What was actually found
     checked_at: str  # ISO 8601 timestamp
+
+
+@dataclass(frozen=True)
+class DeterministicMetrics:
+    """Metrics computed by the engine, not self-reported by agents.
+
+    These are parsed from actual tool execution output (e.g., pytest stdout).
+    """
+
+    test_total: int
+    test_passed: int
+    test_failed: int
+    coverage_pct: float | None
+    stdout_hash: str  # sha256 of raw tool stdout
+    computed_at: str  # ISO 8601
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +242,7 @@ class SlotState:
     agent_prompt: str | None = None
     pre_check_results: list[GateCheckResult] = field(default_factory=list)
     post_check_results: list[GateCheckResult] = field(default_factory=list)
+    deterministic_metrics: DeterministicMetrics | None = None
 
 
 @dataclass
@@ -240,6 +257,7 @@ class PipelineState:
     completed_at: str | None = None
     parameters: dict[str, Any] = field(default_factory=dict)
     slots: dict[str, SlotState] = field(default_factory=dict)
+    yaml_path: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +277,9 @@ class SlotTypeDefinition:
     output_schema: dict[str, Any]
     required_capabilities: list[str]
     constraints: list[str] = field(default_factory=list)
+    allowed_tools: list[str] = field(default_factory=list)
+    denied_tools: list[str] = field(default_factory=list)
+    required_tools: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -362,3 +383,34 @@ class PipelineObserver(ABC):
         old_status: PipelineStatus, new_status: PipelineStatus,
     ) -> None:
         """Called when the pipeline status enum changes."""
+
+    def on_slot_retrying(
+        self, pipeline_id: str, slot_id: str, retry_count: int
+    ) -> None:
+        """Called when a slot transitions to RETRYING.
+
+        Default is a no-op so existing observers don't break.
+        """
+
+
+# ---------------------------------------------------------------------------
+# Context routing
+# ---------------------------------------------------------------------------
+
+
+class ContextTier(StrEnum):
+    """Tier of context detail loaded for a file."""
+
+    L0 = "abstract"    # ~100 tokens — directory-level summary
+    L1 = "overview"    # ~2K tokens — module-level overview
+    L2 = "detail"      # Full source file
+
+
+@dataclass(frozen=True)
+class ContextItem:
+    """A single item in the context window for a slot."""
+
+    path: str              # File path relative to project root
+    tier: ContextTier      # Current load tier
+    relevance: float       # Relevance score 0.0-1.0
+    tokens_estimate: int   # Estimated token count

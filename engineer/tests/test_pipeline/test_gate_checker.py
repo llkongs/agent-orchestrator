@@ -1,5 +1,6 @@
 """Tests for pipeline.gate_checker -- Pre/post-condition evaluation."""
 
+import hashlib
 import subprocess
 from unittest.mock import patch
 
@@ -8,6 +9,7 @@ import yaml
 
 from src.pipeline.gate_checker import GateChecker
 from src.pipeline.models import (
+    DeterministicMetrics,
     Gate,
     GateCheckResult,
     PipelineState,
@@ -559,3 +561,138 @@ class TestCompare:
         # Non-numeric values with >, <, >=, <= should return False
         assert GateChecker._compare("abc", ">", "def") is False
         assert GateChecker._compare("abc", "<", "def") is False
+
+
+# ===================================================================
+# Phase 3: Deterministic Verification Tests
+# ===================================================================
+
+
+class TestParsePytestOutput:
+    def test_simple_pass(self):
+        stdout = "312 passed in 3.31s\n"
+        metrics = GateChecker._parse_pytest_output(stdout, "2026-01-01T00:00:00Z")
+        assert metrics.test_total == 312
+        assert metrics.test_passed == 312
+        assert metrics.test_failed == 0
+        assert metrics.coverage_pct is None
+        assert metrics.stdout_hash == hashlib.sha256(stdout.encode()).hexdigest()
+
+    def test_pass_and_fail(self):
+        stdout = "310 passed, 2 failed in 3.11s\n"
+        metrics = GateChecker._parse_pytest_output(stdout, "2026-01-01T00:00:00Z")
+        assert metrics.test_total == 312
+        assert metrics.test_passed == 310
+        assert metrics.test_failed == 2
+
+    def test_with_errors(self):
+        stdout = "5 passed, 1 failed, 2 errors in 1.0s\n"
+        metrics = GateChecker._parse_pytest_output(stdout, "2026-01-01T00:00:00Z")
+        assert metrics.test_total == 8
+        assert metrics.test_passed == 5
+        assert metrics.test_failed == 1
+
+    def test_with_coverage(self):
+        stdout = "312 passed in 3.31s\nTOTAL   100   3    97%\n"
+        metrics = GateChecker._parse_pytest_output(stdout, "2026-01-01T00:00:00Z")
+        assert metrics.coverage_pct == 97.0
+
+    def test_empty_output(self):
+        metrics = GateChecker._parse_pytest_output("", "2026-01-01T00:00:00Z")
+        assert metrics.test_total == 0
+        assert metrics.test_passed == 0
+
+
+class TestCheckChecksumMatch:
+    def test_matching_checksum(self, tmp_path):
+        f = tmp_path / "test.txt"
+        f.write_text("hello world")
+        expected = hashlib.sha256(b"hello world").hexdigest()
+        checker = GateChecker(str(tmp_path))
+        result = checker.check_checksum_match(f"test.txt:{expected}")
+        assert result.passed is True
+
+    def test_mismatching_checksum(self, tmp_path):
+        f = tmp_path / "test.txt"
+        f.write_text("hello world")
+        checker = GateChecker(str(tmp_path))
+        result = checker.check_checksum_match("test.txt:0000000000000000")
+        assert result.passed is False
+        assert "mismatch" in result.evidence
+
+    def test_missing_file(self, tmp_path):
+        checker = GateChecker(str(tmp_path))
+        result = checker.check_checksum_match("nonexistent.txt:abc123")
+        assert result.passed is False
+        assert "not found" in result.evidence
+
+    def test_invalid_format(self, tmp_path):
+        checker = GateChecker(str(tmp_path))
+        result = checker.check_checksum_match("no_colon_here")
+        assert result.passed is False
+        assert "Invalid" in result.evidence
+
+
+class TestCheckTestsWithMetrics:
+    def test_missing_directory(self, tmp_path):
+        checker = GateChecker(str(tmp_path))
+        result, metrics = checker.check_tests_with_metrics("nonexistent/")
+        assert result.passed is False
+        assert metrics is None
+
+    def test_returns_metrics_on_success(self, tmp_path):
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "test_dummy.py").write_text(
+            "def test_pass(): assert True\n"
+        )
+        checker = GateChecker(str(tmp_path))
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0,
+                stdout="1 passed in 0.01s\n", stderr="",
+            )
+            result, metrics = checker.check_tests_with_metrics("tests/")
+        assert result.passed is True
+        assert metrics is not None
+        assert metrics.test_passed == 1
+
+
+class TestChecksumDispatch:
+    def test_dispatch_routes_checksum_match(self, tmp_path):
+        f = tmp_path / "a.txt"
+        f.write_text("data")
+        expected = hashlib.sha256(b"data").hexdigest()
+        checker = GateChecker(str(tmp_path))
+        state = PipelineState(
+            pipeline_id="t", pipeline_version="1.0.0",
+            definition_hash="sha256:x",
+        )
+        result = checker._dispatch(
+            "checksum_match", f"a.txt:{expected}", "checksum", state,
+        )
+        assert result.passed is True
+
+
+class TestDeterministicMetricsSaveLoad:
+    def test_roundtrip(self, sample_pipeline, state_dir):
+        from src.pipeline.state import PipelineStateTracker
+
+        tracker = PipelineStateTracker(str(state_dir))
+        state = tracker.init_state(sample_pipeline, {})
+        state.slots["slot-design"].deterministic_metrics = DeterministicMetrics(
+            test_total=312,
+            test_passed=312,
+            test_failed=0,
+            coverage_pct=97.0,
+            stdout_hash="abc123",
+            computed_at="2026-01-01T00:00:00Z",
+        )
+        path = tracker.save(state)
+
+        tracker2 = PipelineStateTracker(str(state_dir))
+        loaded = tracker2.load(path)
+        dm = loaded.slots["slot-design"].deterministic_metrics
+        assert dm is not None
+        assert dm.test_total == 312
+        assert dm.coverage_pct == 97.0
+        assert dm.stdout_hash == "abc123"

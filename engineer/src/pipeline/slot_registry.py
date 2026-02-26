@@ -75,6 +75,9 @@ class SlotRegistry:
                 output_schema=st_data.get("output_schema", {}),
                 required_capabilities=list(st_data.get("required_capabilities", [])),
                 constraints=list(st_data.get("constraints", [])),
+                allowed_tools=list(st_data.get("allowed_tools", [])),
+                denied_tools=list(st_data.get("denied_tools", [])),
+                required_tools=list(st_data.get("required_tools", [])),
             )
             self._slot_types[std.id] = std
 

@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from pipeline.models import (
+    DeterministicMetrics,
     GateCheckResult,
     Pipeline,
     PipelineState,
@@ -23,6 +24,55 @@ from pipeline.models import (
     SlotState,
     SlotStatus,
 )
+
+
+class InvalidTransitionError(Exception):
+    """Raised when an invalid state transition is attempted."""
+
+
+# Valid state transitions for slots
+VALID_SLOT_TRANSITIONS: dict[SlotStatus, set[SlotStatus]] = {
+    SlotStatus.PENDING: {
+        SlotStatus.BLOCKED, SlotStatus.READY, SlotStatus.PRE_CHECK,
+        SlotStatus.IN_PROGRESS, SlotStatus.SKIPPED, SlotStatus.FAILED,
+    },
+    SlotStatus.BLOCKED: {
+        SlotStatus.READY, SlotStatus.PRE_CHECK,
+        SlotStatus.IN_PROGRESS, SlotStatus.SKIPPED, SlotStatus.FAILED,
+    },
+    SlotStatus.READY: {
+        SlotStatus.PRE_CHECK, SlotStatus.IN_PROGRESS,
+        SlotStatus.SKIPPED, SlotStatus.FAILED,
+    },
+    SlotStatus.PRE_CHECK: {SlotStatus.IN_PROGRESS, SlotStatus.FAILED},
+    SlotStatus.IN_PROGRESS: {
+        SlotStatus.POST_CHECK, SlotStatus.COMPLETED,
+        SlotStatus.FAILED, SlotStatus.RETRYING,
+    },
+    SlotStatus.POST_CHECK: {SlotStatus.COMPLETED, SlotStatus.FAILED},
+    SlotStatus.COMPLETED: set(),
+    SlotStatus.FAILED: {SlotStatus.RETRYING, SlotStatus.SKIPPED},
+    SlotStatus.SKIPPED: set(),
+    SlotStatus.RETRYING: {SlotStatus.PRE_CHECK, SlotStatus.IN_PROGRESS},
+}
+
+# Valid state transitions for pipeline
+VALID_PIPELINE_TRANSITIONS: dict[PipelineStatus, set[PipelineStatus]] = {
+    PipelineStatus.LOADED: {
+        PipelineStatus.VALIDATED, PipelineStatus.RUNNING,
+        PipelineStatus.ABORTED, PipelineStatus.COMPLETED, PipelineStatus.FAILED,
+    },
+    PipelineStatus.VALIDATED: {PipelineStatus.RUNNING, PipelineStatus.ABORTED},
+    PipelineStatus.RUNNING: {
+        PipelineStatus.PAUSED, PipelineStatus.COMPLETED,
+        PipelineStatus.FAILED, PipelineStatus.ABORTED,
+    },
+    PipelineStatus.PAUSED: {PipelineStatus.RUNNING, PipelineStatus.ABORTED},
+    PipelineStatus.COMPLETED: {PipelineStatus.AUDITING},
+    PipelineStatus.FAILED: {PipelineStatus.RUNNING},  # allow retry
+    PipelineStatus.ABORTED: set(),
+    PipelineStatus.AUDITING: {PipelineStatus.COMPLETED},
+}
 
 
 class PipelineStateTracker:
@@ -38,7 +88,10 @@ class PipelineStateTracker:
         self._state_file: str | None = None
 
     def init_state(
-        self, pipeline: Pipeline, params: dict[str, Any]
+        self,
+        pipeline: Pipeline,
+        params: dict[str, Any],
+        yaml_path: str | None = None,
     ) -> PipelineState:
         """Create initial state for a pipeline run.
 
@@ -59,7 +112,47 @@ class PipelineStateTracker:
             status=PipelineStatus.LOADED,
             parameters=dict(params),
             slots=slots,
+            yaml_path=yaml_path,
         )
+        self.save(state)
+        return state
+
+    def update_pipeline_status(
+        self, state: PipelineState, status: PipelineStatus
+    ) -> PipelineState:
+        """Update pipeline-level status with automatic timestamp management.
+
+        Timestamp behavior:
+        - started_at set when status changes to RUNNING (only once)
+        - completed_at set when status changes to COMPLETED/FAILED/ABORTED
+
+        Args:
+            state: Current pipeline state (modified in place AND saved).
+            status: New status.
+
+        Returns:
+            Updated PipelineState.
+
+        Raises:
+            InvalidTransitionError: If the transition is not allowed.
+        """
+        allowed = VALID_PIPELINE_TRANSITIONS.get(state.status, set())
+        if status != state.status and status not in allowed:
+            raise InvalidTransitionError(
+                f"Pipeline transition {state.status.value} -> {status.value} "
+                f"is not allowed. Valid transitions: "
+                f"{', '.join(s.value for s in sorted(allowed, key=lambda x: x.value)) or 'none'}"
+            )
+        now = datetime.now(timezone.utc).isoformat()
+        state.status = status
+        if status == PipelineStatus.RUNNING and state.started_at is None:
+            state.started_at = now
+        if status in (
+            PipelineStatus.COMPLETED,
+            PipelineStatus.FAILED,
+            PipelineStatus.ABORTED,
+        ):
+            state.completed_at = now
         self.save(state)
         return state
 
@@ -96,11 +189,23 @@ class PipelineStateTracker:
 
         Raises:
             KeyError: slot_id not found in state.
+            InvalidTransitionError: If the transition is not allowed.
         """
         if slot_id not in state.slots:
             raise KeyError(f"Slot '{slot_id}' not found in pipeline state")
 
         slot_state = state.slots[slot_id]
+
+        # Validate transition
+        current = slot_state.status
+        allowed = VALID_SLOT_TRANSITIONS.get(current, set())
+        if status != current and status not in allowed:
+            raise InvalidTransitionError(
+                f"Slot '{slot_id}' transition {current.value} -> {status.value} "
+                f"is not allowed. Valid transitions: "
+                f"{', '.join(s.value for s in sorted(allowed, key=lambda x: x.value)) or 'none'}"
+            )
+
         now = datetime.now(timezone.utc).isoformat()
 
         slot_state.status = status
@@ -163,7 +268,9 @@ class PipelineStateTracker:
             all_deps_met = True
             for dep_id in slot.depends_on:
                 dep_state = state.slots.get(dep_id)
-                if dep_state is None or dep_state.status != SlotStatus.COMPLETED:
+                if dep_state is None or dep_state.status not in (
+                    SlotStatus.COMPLETED, SlotStatus.SKIPPED
+                ):
                     all_deps_met = False
                     break
 
@@ -175,7 +282,9 @@ class PipelineStateTracker:
             all_sources_met = True
             for src_id in df_sources:
                 src_state = state.slots.get(src_id)
-                if src_state is None or src_state.status != SlotStatus.COMPLETED:
+                if src_state is None or src_state.status not in (
+                    SlotStatus.COMPLETED, SlotStatus.SKIPPED
+                ):
                     all_sources_met = False
                     break
 
@@ -255,12 +364,15 @@ class PipelineStateTracker:
         fd, tmp_path = tempfile.mkstemp(
             dir=str(self._state_dir), suffix=".tmp"
         )
+        fd_closed = False
         try:
             os.write(fd, yaml_content.encode("utf-8"))
             os.close(fd)
+            fd_closed = True
             os.rename(tmp_path, self._state_file)
         except Exception:
-            os.close(fd) if not os.get_inheritable(fd) else None
+            if not fd_closed:
+                os.close(fd)
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             raise
@@ -340,6 +452,36 @@ class PipelineStateTracker:
                 slot_data["agent_id"] = ss.agent_id
             if ss.agent_prompt:
                 slot_data["agent_prompt"] = ss.agent_prompt
+            if ss.pre_check_results:
+                slot_data["pre_check_results"] = [
+                    {
+                        "condition": r.condition,
+                        "passed": r.passed,
+                        "evidence": r.evidence,
+                        "checked_at": r.checked_at,
+                    }
+                    for r in ss.pre_check_results
+                ]
+            if ss.post_check_results:
+                slot_data["post_check_results"] = [
+                    {
+                        "condition": r.condition,
+                        "passed": r.passed,
+                        "evidence": r.evidence,
+                        "checked_at": r.checked_at,
+                    }
+                    for r in ss.post_check_results
+                ]
+            if ss.deterministic_metrics is not None:
+                dm = ss.deterministic_metrics
+                slot_data["deterministic_metrics"] = {
+                    "test_total": dm.test_total,
+                    "test_passed": dm.test_passed,
+                    "test_failed": dm.test_failed,
+                    "coverage_pct": dm.coverage_pct,
+                    "stdout_hash": dm.stdout_hash,
+                    "computed_at": dm.computed_at,
+                }
             slots_dict[slot_id] = slot_data
 
         return {
@@ -350,6 +492,7 @@ class PipelineStateTracker:
             "started_at": state.started_at,
             "completed_at": state.completed_at,
             "parameters": state.parameters,
+            "yaml_path": state.yaml_path,
             "slots": slots_dict,
         }
 
@@ -358,6 +501,16 @@ class PipelineStateTracker:
         """Deserialize dict from YAML into PipelineState."""
         slots: dict[str, SlotState] = {}
         for slot_id, ss_data in data.get("slots", {}).items():
+            pre_results = [
+                GateCheckResult(**r)
+                for r in ss_data.get("pre_check_results", [])
+            ]
+            post_results = [
+                GateCheckResult(**r)
+                for r in ss_data.get("post_check_results", [])
+            ]
+            dm_data = ss_data.get("deterministic_metrics")
+            dm = DeterministicMetrics(**dm_data) if dm_data else None
             slots[slot_id] = SlotState(
                 slot_id=ss_data["slot_id"],
                 status=SlotStatus(ss_data.get("status", "pending")),
@@ -367,6 +520,9 @@ class PipelineStateTracker:
                 error=ss_data.get("error"),
                 agent_id=ss_data.get("agent_id"),
                 agent_prompt=ss_data.get("agent_prompt"),
+                pre_check_results=pre_results,
+                post_check_results=post_results,
+                deterministic_metrics=dm,
             )
 
         return PipelineState(
@@ -378,4 +534,5 @@ class PipelineStateTracker:
             completed_at=data.get("completed_at"),
             parameters=data.get("parameters", {}),
             slots=slots,
+            yaml_path=data.get("yaml_path"),
         )

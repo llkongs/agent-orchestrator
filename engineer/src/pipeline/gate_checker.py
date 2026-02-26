@@ -6,6 +6,8 @@ Failed conditions return passed=False with error details in evidence.
 
 from __future__ import annotations
 
+import hashlib
+import re
 import shlex
 import subprocess
 from datetime import datetime, timezone
@@ -15,6 +17,7 @@ from typing import Any
 import yaml
 
 from pipeline.models import (
+    DeterministicMetrics,
     GateCheckResult,
     PipelineState,
     Slot,
@@ -271,6 +274,106 @@ class GateChecker:
                 checked_at=now,
             )
 
+    def check_tests_with_metrics(
+        self, target: str
+    ) -> tuple[GateCheckResult, DeterministicMetrics | None]:
+        """Run tests and extract deterministic metrics from stdout.
+
+        Unlike check_tests_pass(), this method parses pytest output to
+        produce DeterministicMetrics that can be stored and compared.
+
+        Args:
+            target: Test directory relative to project_root.
+
+        Returns:
+            (GateCheckResult, DeterministicMetrics or None)
+        """
+        now = self._now()
+        test_path = self._project_root / target
+        if not test_path.exists():
+            return (
+                GateCheckResult(
+                    condition=f"Tests with metrics: {target}",
+                    passed=False,
+                    evidence=f"Test directory not found: {test_path}",
+                    checked_at=now,
+                ),
+                None,
+            )
+        try:
+            result = subprocess.run(
+                ["python3", "-m", "pytest", str(test_path), "--tb=no", "-q"],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                cwd=str(self._project_root),
+            )
+            stdout = result.stdout or ""
+            metrics = self._parse_pytest_output(stdout, now)
+            passed = result.returncode == 0
+            evidence = stdout.strip()[-200:] if stdout else "No output"
+            return (
+                GateCheckResult(
+                    condition=f"Tests with metrics: {target}",
+                    passed=passed,
+                    evidence=evidence,
+                    checked_at=now,
+                ),
+                metrics,
+            )
+        except Exception as exc:
+            return (
+                GateCheckResult(
+                    condition=f"Tests with metrics: {target}",
+                    passed=False,
+                    evidence=f"Error running tests: {exc}",
+                    checked_at=now,
+                ),
+                None,
+            )
+
+    def check_checksum_match(self, target: str) -> GateCheckResult:
+        """Verify file checksum matches expected hash.
+
+        Args:
+            target: Format "file_path:expected_sha256_hash"
+
+        Returns:
+            GateCheckResult with pass/fail.
+        """
+        now = self._now()
+        parts = target.rsplit(":", 1)
+        if len(parts) != 2:
+            return GateCheckResult(
+                condition=f"Checksum match: {target}",
+                passed=False,
+                evidence="Invalid target format. Expected 'file_path:sha256_hash'",
+                checked_at=now,
+            )
+        file_path, expected_hash = parts
+        full_path = self._project_root / file_path
+        if not full_path.exists():
+            return GateCheckResult(
+                condition=f"Checksum match: {file_path}",
+                passed=False,
+                evidence=f"File not found: {full_path}",
+                checked_at=now,
+            )
+        actual_hash = self._compute_sha256(str(full_path))
+        if actual_hash == expected_hash:
+            return GateCheckResult(
+                condition=f"Checksum match: {file_path}",
+                passed=True,
+                evidence=f"SHA256 matches: {actual_hash}",
+                checked_at=now,
+            )
+        return GateCheckResult(
+            condition=f"Checksum match: {file_path}",
+            passed=False,
+            evidence=f"SHA256 mismatch: expected {expected_hash}, got {actual_hash}",
+            checked_at=now,
+        )
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
@@ -290,6 +393,8 @@ class GateChecker:
                 return self.check_review_valid(target)
             if gate_type == "tests_pass":
                 return self.check_tests_pass(target)
+            if gate_type == "checksum_match":
+                return self.check_checksum_match(target)
             if gate_type == "custom":
                 return self.evaluate_custom(target)
             if gate_type in ("approval", "artifact_valid"):
@@ -457,3 +562,55 @@ class GateChecker:
     @staticmethod
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _parse_pytest_output(stdout: str, now: str) -> DeterministicMetrics:
+        """Parse pytest summary line to extract test counts.
+
+        Handles formats like:
+        - "312 passed in 3.31s"
+        - "310 passed, 2 failed in 3.11s"
+        - "5 passed, 1 failed, 2 errors in 1.0s"
+        """
+        passed = 0
+        failed = 0
+        total = 0
+        coverage_pct = None
+
+        m_passed = re.search(r"(\d+)\s+passed", stdout)
+        if m_passed:
+            passed = int(m_passed.group(1))
+
+        m_failed = re.search(r"(\d+)\s+failed", stdout)
+        if m_failed:
+            failed = int(m_failed.group(1))
+
+        m_errors = re.search(r"(\d+)\s+error", stdout)
+        errors = int(m_errors.group(1)) if m_errors else 0
+
+        total = passed + failed + errors
+
+        # Try to extract coverage: "TOTAL    100   10    90%"
+        m_cov = re.search(r"(\d+(?:\.\d+)?)%\s*$", stdout, re.MULTILINE)
+        if m_cov:
+            coverage_pct = float(m_cov.group(1))
+
+        stdout_hash = hashlib.sha256(stdout.encode("utf-8")).hexdigest()
+
+        return DeterministicMetrics(
+            test_total=total,
+            test_passed=passed,
+            test_failed=failed,
+            coverage_pct=coverage_pct,
+            stdout_hash=stdout_hash,
+            computed_at=now,
+        )
+
+    @staticmethod
+    def _compute_sha256(file_path: str) -> str:
+        """Compute SHA256 hash of a file."""
+        h = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()

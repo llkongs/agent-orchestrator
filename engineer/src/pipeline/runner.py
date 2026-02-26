@@ -8,8 +8,10 @@ module that instantiates and wires together all other modules.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
+from pipeline.context_router import ContextRouter
 from pipeline.gate_checker import GateChecker
 from pipeline.loader import PipelineLoader
 from pipeline.models import (
@@ -52,6 +54,7 @@ class PipelineRunner:
         agents_dir: str,
         *,
         observers: list[PipelineObserver] | None = None,
+        constitution_path: str | None = None,
     ) -> None:
         self._project_root = project_root
         self._loader = PipelineLoader()
@@ -60,6 +63,9 @@ class PipelineRunner:
         self._registry = SlotRegistry(slot_types_dir, agents_dir)
         self._gate_checker = GateChecker(project_root)
         self._observers: list[PipelineObserver] = observers or []
+        self._context_router: ContextRouter | None = None
+        if constitution_path is not None:
+            self._context_router = ContextRouter(project_root, constitution_path)
 
     def add_observer(self, observer: PipelineObserver) -> None:
         """Register an observer for pipeline events."""
@@ -116,7 +122,7 @@ class PipelineRunner:
                 f"Slot type validation failed: {'; '.join(slot_type_errors)}"
             )
 
-        state = self._state_tracker.init_state(pipeline, params)
+        state = self._state_tracker.init_state(pipeline, params, yaml_path=yaml_path)
         return pipeline, state
 
     def get_next_slots(
@@ -163,7 +169,9 @@ class PipelineRunner:
             # Update pipeline status to RUNNING if not already
             old_status = state.status
             if state.status != PipelineStatus.RUNNING:
-                state.status = PipelineStatus.RUNNING
+                state = self._state_tracker.update_pipeline_status(
+                    state, PipelineStatus.RUNNING
+                )
                 self._notify(
                     "on_status_changed",
                     state.pipeline_id, old_status, state.status,
@@ -171,6 +179,27 @@ class PipelineRunner:
                 self._notify(
                     "on_pipeline_started", state.pipeline_id, state,
                 )
+
+            # Build context if router is available (enhancement, non-critical)
+            if self._context_router is not None:
+                try:
+                    context_items = self._context_router.build_context(
+                        slot, pipeline
+                    )
+                    context_yaml = self._context_router.generate_slot_context_yaml(
+                        context_items
+                    )
+                    context_path = (
+                        Path(self._state_tracker._state_dir)
+                        / f"{state.pipeline_id}-{slot.id}-context.yaml"
+                    )
+                    context_path.write_text(context_yaml, encoding="utf-8")
+                except Exception:
+                    logger.warning(
+                        "Context routing failed for slot %s",
+                        slot.id,
+                        exc_info=True,
+                    )
 
             state = self._state_tracker.update_slot(
                 state,
@@ -256,8 +285,9 @@ class PipelineRunner:
         # Check if pipeline is complete
         if self._state_tracker.is_complete(state):
             old_status = state.status
-            state.status = PipelineStatus.COMPLETED
-            self._state_tracker.save(state)
+            state = self._state_tracker.update_pipeline_status(
+                state, PipelineStatus.COMPLETED
+            )
             self._notify(
                 "on_status_changed",
                 state.pipeline_id, old_status, state.status,
@@ -286,8 +316,9 @@ class PipelineRunner:
         # Check if all slots are terminal
         if self._state_tracker.is_complete(state):
             old_status = state.status
-            state.status = PipelineStatus.FAILED
-            self._state_tracker.save(state)
+            state = self._state_tracker.update_pipeline_status(
+                state, PipelineStatus.FAILED
+            )
             self._notify(
                 "on_status_changed",
                 state.pipeline_id, old_status, state.status,
@@ -312,8 +343,81 @@ class PipelineRunner:
         )
 
         if self._state_tracker.is_complete(state):
-            state.status = PipelineStatus.COMPLETED
-            self._state_tracker.save(state)
+            state = self._state_tracker.update_pipeline_status(
+                state, PipelineStatus.COMPLETED
+            )
+
+        return state
+
+    def retry_slot(
+        self,
+        slot_id: str,
+        pipeline: Pipeline,
+        state: PipelineState,
+        *,
+        agent_id: str | None = None,
+        agent_prompt: str | None = None,
+    ) -> PipelineState:
+        """Retry a failed slot.
+
+        Steps:
+        1. Validate slot is in FAILED state
+        2. Check retry_count < max_retries
+        3. Transition FAILED -> RETRYING
+        4. Increment retry_count, clear error
+        5. Begin slot execution (runs pre-conditions again)
+
+        Returns:
+            Updated PipelineState.
+
+        Raises:
+            PipelineExecutionError: Slot is not FAILED or max retries exceeded.
+        """
+        slot = self._find_slot(pipeline, slot_id)
+        slot_state = state.slots.get(slot_id)
+
+        if slot_state is None:
+            raise PipelineExecutionError(
+                f"Slot '{slot_id}' not found in pipeline state"
+            )
+
+        if slot_state.status != SlotStatus.FAILED:
+            raise PipelineExecutionError(
+                f"Cannot retry slot '{slot_id}': status is "
+                f"'{slot_state.status.value}', expected 'failed'"
+            )
+
+        max_retries = slot.execution.max_retries
+        if slot_state.retry_count >= max_retries:
+            raise PipelineExecutionError(
+                f"Slot '{slot_id}' has exceeded max retries "
+                f"({slot_state.retry_count}/{max_retries})"
+            )
+
+        # Transition to RETRYING
+        state = self._state_tracker.update_slot(
+            state, slot_id, SlotStatus.RETRYING,
+        )
+        slot_state = state.slots[slot_id]
+        slot_state.retry_count += 1
+        slot_state.error = None
+        slot_state.completed_at = None
+
+        self._notify(
+            "on_slot_retrying",
+            state.pipeline_id, slot_id, slot_state.retry_count,
+        )
+
+        # Re-begin the slot
+        state = self._state_tracker.update_slot(
+            state, slot_id, SlotStatus.IN_PROGRESS,
+            agent_id=agent_id,
+            agent_prompt=agent_prompt,
+        )
+        self._notify(
+            "on_slot_started",
+            state.pipeline_id, slot_id, agent_id,
+        )
 
         return state
 
@@ -367,8 +471,9 @@ class PipelineRunner:
                 f"expected 'completed'"
             )
         old_status = state.status
-        state.status = PipelineStatus.AUDITING
-        self._state_tracker.save(state)
+        state = self._state_tracker.update_pipeline_status(
+            state, PipelineStatus.AUDITING
+        )
         self._notify(
             "on_status_changed",
             state.pipeline_id, old_status, state.status,
@@ -389,12 +494,16 @@ class PipelineRunner:
         Raises:
             PipelineExecutionError: Hash mismatch (pipeline was modified).
         """
-        # The pipeline YAML path is not stored in state, so we cannot
-        # re-load and verify the pipeline definition from state alone.
-        # The caller should use resume_with_pipeline() instead.
-        raise PipelineExecutionError(
-            "resume() requires pipeline YAML path tracking -- "
-            "use resume_with_pipeline() instead"
+        state = self._state_tracker.load(state_path)
+
+        if state.yaml_path is None:
+            raise PipelineExecutionError(
+                "resume() requires yaml_path in state -- "
+                "use resume_with_pipeline() instead"
+            )
+
+        return self.resume_with_pipeline(
+            state_path, state.yaml_path, state.parameters
         )
 
     def resume_with_pipeline(

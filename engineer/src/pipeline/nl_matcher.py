@@ -14,8 +14,6 @@ from typing import Any
 
 import yaml
 
-from pipeline.loader import PipelineLoader
-
 
 @dataclass(frozen=True)
 class TemplateMatch:
@@ -144,7 +142,6 @@ class NLMatcher:
     def __init__(self, templates_dir: str) -> None:
         self._templates_dir = Path(templates_dir)
         self._templates: dict[str, dict[str, Any]] = {}
-        self._loader = PipelineLoader()
         self._load_templates()
 
     def match(self, nl_input: str) -> list[TemplateMatch]:

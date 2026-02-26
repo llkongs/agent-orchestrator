@@ -538,3 +538,51 @@ This prevents downstream agents from referencing stale paths.
 | Write a delivery manifest | Own role directory | `DELIVERY.yaml` |
 | Write a review manifest | `qa/` | `REVIEW.yaml` |
 | Update integration contract | `specs/integration-contract.md` | (single file, append) |
+| Add a memory topic file | `memory/` | `{topic}.md` (kebab-case) |
+| Add a context abstract | Any directory | `.abstract.md` |
+| Add a context overview | Any directory | `.overview.md` |
+
+---
+
+## 15. Context Layer Files
+
+Context layer files provide tiered summaries of directory contents for efficient context loading.
+
+### 15.1 Naming Convention
+
+| Layer | File | Token Limit | Purpose |
+|-------|------|-------------|---------|
+| **L0** | `.abstract.md` | <= 100 tokens | Directory-level summary, fits in any context window |
+| **L1** | `.overview.md` | <= 2,000 tokens | Module-level overview, loaded when topic is relevant |
+| **L2** | (source files) | No limit | Original files, loaded only when editing/reviewing |
+
+### 15.2 Ownership
+
+Each directory's **write-owner** is responsible for maintaining its `.abstract.md` and `.overview.md` files. Updates are required when directory contents change materially (files added, removed, or renamed).
+
+### 15.3 Token Limits
+
+- **L0** (`.abstract.md`): Maximum 100 tokens. One-liner to three-liner describing the directory's purpose and key contents. Must be understandable without reading any other file.
+- **L1** (`.overview.md`): Maximum 2,000 tokens. Lists all files with brief descriptions, key interfaces, dependencies, and usage notes. Sufficient to decide whether to drill into L2.
+- **L2** (source files): No token limit. The actual source files. Loaded only when actively editing or reviewing.
+
+### 15.4 Required Locations
+
+The following directories MUST have `.abstract.md` and `.overview.md` files:
+
+1. `specs/`
+2. `specs/pipelines/templates/`
+3. `specs/pipelines/slot-types/`
+4. `engineer/src/pipeline/`
+5. `agents/`
+6. `architect/`
+7. `state/`
+8. `memory/` -- Note: `MEMORY.md` serves as both L0 and L1 for this directory
+
+### 15.5 Update Protocol
+
+When adding, removing, or renaming files in a directory with context layer files:
+
+1. Update the directory's `.abstract.md` if the change affects the directory's purpose
+2. Update the directory's `.overview.md` to reflect the new file list and any interface changes
+3. If the directory is `memory/`, update `MEMORY.md` instead

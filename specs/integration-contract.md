@@ -26,6 +26,7 @@ src/pipeline/
   gate_checker.py       # Module 6: Condition Evaluation
   runner.py             # Module 7: Pipeline Orchestration
   nl_matcher.py         # Module 8: Template Matching
+  context_router.py     # Module 10: Context Routing
 ```
 
 ### Dependency Rules
@@ -37,8 +38,9 @@ validator.py       imports: models
 state.py           imports: models
 slot_registry.py   imports: models
 gate_checker.py    imports: models
-runner.py          imports: models, loader, validator, state, slot_registry, gate_checker
+runner.py          imports: models, loader, validator, state, slot_registry, gate_checker, context_router
 nl_matcher.py      imports: models, loader
+context_router.py  imports: models
 __init__.py        imports: all of the above (re-exports)
 ```
 
@@ -1283,7 +1285,102 @@ PipelineStateTracker.archive(state)
 
 ---
 
-## 12. Error Handling Contract
+## 12. Module 10: `context_router.py` -- Context Routing
+
+### Exports
+
+```python
+class ContextRouter:
+    def __init__(self, project_root: str, constitution_path: str):
+        """Initialize and scan for .abstract.md / .overview.md files.
+
+        Args:
+            project_root: Root directory of the project.
+            constitution_path: Path to the constitution.md file.
+        """
+
+    def build_context(
+        self,
+        slot: Slot,
+        pipeline: Pipeline,
+        *,
+        max_tokens: int = 8000,
+    ) -> list[ContextItem]:
+        """Build a tiered context list for a slot.
+
+        Steps:
+        1. Always include constitution.md (L2, relevance=1.0)
+        2. Load all L0 (.abstract.md) files
+        3. Based on slot_type, load relevant L1 (.overview.md) files
+        4. Upgrade within token budget
+
+        Args:
+            slot: The slot to build context for.
+            pipeline: The pipeline definition.
+            max_tokens: Maximum total token budget (default 8000).
+
+        Returns:
+            List of ContextItem within budget.
+        """
+
+    def get_constitution(self) -> str:
+        """Read and return constitution.md content.
+
+        Returns:
+            File content, or empty string if not found.
+        """
+
+    def get_mandatory_reads(self, slot_type: str) -> list[str]:
+        """Return relevant directory prefixes for a slot type.
+
+        Mapping:
+        - designer -> specs/, architect/
+        - researcher -> specs/, agents/, docs/
+        - implementer -> engineer/src/pipeline/, specs/pipelines/
+        - reviewer -> engineer/src/pipeline/, specs/
+        - approver -> architect/, specs/
+        - auditor -> compliance-auditor/, specs/
+        - deployer -> engineer/, state/
+
+        Returns:
+            List of directory prefix strings. Empty for unknown types.
+        """
+
+    def upgrade_tier(
+        self, item: ContextItem, target: ContextTier
+    ) -> ContextItem:
+        """Upgrade a ContextItem to a higher tier.
+
+        L0 -> L1: swap .abstract.md -> .overview.md
+        L1 -> L2: strip .overview.md suffix to get source path
+
+        Raises:
+            ValueError: Invalid upgrade (L0->L2 directly, or at target).
+            FileNotFoundError: Upgraded file does not exist.
+        """
+
+    def generate_slot_context_yaml(self, items: list[ContextItem]) -> str:
+        """Generate YAML string describing context items.
+
+        Returns:
+            YAML string with context_items list.
+        """
+```
+
+### Dependencies
+
+```
+context_router.py  imports: models (ContextItem, ContextTier, Pipeline, Slot)
+                   stdlib:  pathlib, yaml, os, re
+```
+
+### Consumed by
+
+- `runner.py`: creates ContextRouter when `constitution_path` is provided, calls `build_context()` in `begin_slot()`.
+
+---
+
+## 13. Error Handling Contract
 
 | Module | Exception | When |
 |--------|-----------|------|
@@ -1295,5 +1392,7 @@ PipelineStateTracker.archive(state)
 | `gate_checker.py` | *(never raises)* | All errors become `GateCheckResult(passed=False)` |
 | `state.py` | `KeyError` | Slot ID not found in state |
 | `state.py` | `FileNotFoundError` | State file not found on load |
+| `context_router.py` | `ValueError` | Invalid tier upgrade (e.g., L0 -> L2 directly) |
+| `context_router.py` | `FileNotFoundError` | Upgraded file does not exist |
 
-**Rule**: Modules 1-5 raise exceptions for caller to handle. Module 6 (gate_checker) never raises -- it returns structured results. Module 7 (runner) catches internal exceptions and wraps them in `PipelineExecutionError` or propagates as-is.
+**Rule**: Modules 1-5 raise exceptions for caller to handle. Module 6 (gate_checker) never raises -- it returns structured results. Module 7 (runner) catches internal exceptions and wraps them in `PipelineExecutionError` or propagates as-is. Module 10 (context_router) raises on invalid upgrades but `build_context()` handles errors gracefully.
