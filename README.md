@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-592%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-619%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -710,8 +710,8 @@ agent-orchestrator/
   architect/                       # Architect working directory
     architecture.md                # System architecture document
   engineer/                        # Engine implementation
-    src/pipeline/                  # 17 modules, ~6100 LOC
-    tests/test_pipeline/           # 592 tests, 97% coverage
+    src/pipeline/                  # 18 modules, ~6400 LOC
+    tests/test_pipeline/           # 619 tests, 97% coverage
   qa/                              # QA review artifacts
   pmo/                             # Project management
   specs/
@@ -742,7 +742,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 592 passed, 97% overall coverage
+# 619 passed, 97% overall coverage
 ```
 
 ## External Tools (Optional)

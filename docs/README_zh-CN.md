@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-592%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-619%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -698,8 +698,8 @@ agent-orchestrator/
   architect/                       # 架构师工作目录
     architecture.md                # 系统架构文档
   engineer/                        # 引擎实现
-    src/pipeline/                  # 17 个模块，约 6100 行代码
-    tests/test_pipeline/           # 592 个测试，97% 覆盖率
+    src/pipeline/                  # 18 个模块，约 6400 行代码
+    tests/test_pipeline/           # 619 个测试，97% 覆盖率
   qa/                              # QA 审查产物
   pmo/                             # 项目管理
   specs/
@@ -730,7 +730,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 592 个测试通过，97% 整体覆盖率
+# 619 个测试通过，97% 整体覆盖率
 ```
 
 ## 外部工具（可选）
