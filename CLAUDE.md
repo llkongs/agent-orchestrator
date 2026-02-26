@@ -5,7 +5,7 @@
 Agent Orchestrator is a pluggable, slot-based pipeline engine for multi-agent development workflows.
 
 - **Core insight**: Topology and personnel are orthogonal concerns
-- 16 pipeline modules / ~5900 LOC / 580+ tests
+- 17 pipeline modules / ~6100 LOC / 590+ tests
 - Dependencies: Python 3.11+ / PyYAML only / stdlib only
 
 ## 2. Constitution
@@ -106,9 +106,11 @@ models.py (zero deps -- foundation)
     +--- runner.py (depends on ALL above)
     |
     +--- auto_executor.py (depends on models, runner, slot_contract, slot_registry; automated execution)
+    |
+    +--- bootstrap.py (depends on auto_executor, nl_matcher, runner, slot_contract, slot_registry; one-call init)
 ```
 
-### Pipeline Modules (16)
+### Pipeline Modules (17)
 
 | Module | Responsibility |
 |--------|---------------|
@@ -121,6 +123,7 @@ models.py (zero deps -- foundation)
 | `nl_matcher.py` | Natural language -> template matching (+ OV semantic boost) |
 | `runner.py` | Pipeline orchestration |
 | `auto_executor.py` | Automated execution loop (agent resolution + parallel execution + retry) |
+| `bootstrap.py` | One-call engine init (`boot()` + `BootstrappedExecutor`) |
 | `slot_contract.py` | Slot I/O contract management |
 | `enforcer.py` | Slot enforcement rules |
 | `observer.py` | Compliance observation |

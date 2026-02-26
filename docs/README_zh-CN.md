@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-581%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-592%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -251,9 +251,29 @@ while True:
 print(runner.get_summary(state))
 ```
 
+### 一键启动（Bootstrap）
+
+最简单的使用方式 — 一行代码初始化所有组件：
+
+```python
+from pipeline.bootstrap import boot
+
+auto, runner = boot("/path/to/project")
+
+# 自然语言 → 自动匹配模板 → 执行
+final = auto.run_nl("开发一个新功能实现K线聚合")
+print(auto.summary(final))
+
+# 或者显式指定模板 + 参数
+pipeline, state = runner.prepare("templates/standard-feature.yaml", {
+    "feature_name": "kline-aggregator",
+})
+final = auto.run(pipeline, state)
+```
+
 ### 使用 AutoExecutor 自动执行
 
-无需手动循环槽位，使用 `AutoExecutor` 自动执行整个流水线：
+需要更精细控制时，手动配置 `AutoExecutor`：
 
 ```python
 from pipeline import AutoExecutor, CallbackExecutor, AutoExecutorConfig
@@ -678,8 +698,8 @@ agent-orchestrator/
   architect/                       # 架构师工作目录
     architecture.md                # 系统架构文档
   engineer/                        # 引擎实现
-    src/pipeline/                  # 16 个模块，约 5900 行代码
-    tests/test_pipeline/           # 581 个测试，97% 覆盖率
+    src/pipeline/                  # 17 个模块，约 6100 行代码
+    tests/test_pipeline/           # 592 个测试，97% 覆盖率
   qa/                              # QA 审查产物
   pmo/                             # 项目管理
   specs/
@@ -710,7 +730,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 581 个测试通过，97% 整体覆盖率
+# 592 个测试通过，97% 整体覆盖率
 ```
 
 ## 外部工具（可选）

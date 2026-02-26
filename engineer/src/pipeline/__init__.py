@@ -1,6 +1,13 @@
 """Pipeline Engine for Agent Team Orchestration.
 
-Usage:
+Quick start:
+    from pipeline.bootstrap import boot
+
+    auto, runner = boot("/path/to/project")
+    final = auto.run_nl("implement a login feature")
+    print(auto.summary(final))
+
+Manual setup:
     from pipeline import PipelineRunner
 
     runner = PipelineRunner(
@@ -16,6 +23,7 @@ Usage:
     print(runner.get_summary(state))
 """
 
+from pipeline.bootstrap import BootstrappedExecutor, boot
 from pipeline.auto_executor import (
     AgentExecutor,
     AgentResult,
@@ -77,6 +85,9 @@ from pipeline.state import PipelineStateTracker, InvalidTransitionError
 from pipeline.validator import PipelineCycleError, PipelineValidator, ValidationResult
 
 __all__ = [
+    # Bootstrap
+    "boot",
+    "BootstrappedExecutor",
     # Auto Executor
     "AgentExecutor",
     "AgentResult",

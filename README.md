@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-581%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-592%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -251,9 +251,29 @@ while True:
 print(runner.get_summary(state))
 ```
 
+### Quick Start with Bootstrap
+
+The simplest way to use the pipeline engine — one call initializes everything:
+
+```python
+from pipeline.bootstrap import boot
+
+auto, runner = boot("/path/to/project")
+
+# Natural language → auto-match template → execute
+final = auto.run_nl("implement a new feature")
+print(auto.summary(final))
+
+# Or explicit template + params
+pipeline, state = runner.prepare("templates/standard-feature.yaml", {
+    "feature_name": "kline-aggregator",
+})
+final = auto.run(pipeline, state)
+```
+
 ### Automated Execution with AutoExecutor
 
-Instead of manually looping over slots, use `AutoExecutor` to automate the full pipeline:
+For more control, set up `AutoExecutor` manually:
 
 ```python
 from pipeline import AutoExecutor, CallbackExecutor, AutoExecutorConfig
@@ -690,8 +710,8 @@ agent-orchestrator/
   architect/                       # Architect working directory
     architecture.md                # System architecture document
   engineer/                        # Engine implementation
-    src/pipeline/                  # 16 modules, ~5900 LOC
-    tests/test_pipeline/           # 581 tests, 97% coverage
+    src/pipeline/                  # 17 modules, ~6100 LOC
+    tests/test_pipeline/           # 592 tests, 97% coverage
   qa/                              # QA review artifacts
   pmo/                             # Project management
   specs/
@@ -722,7 +742,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 581 passed, 97% overall coverage
+# 592 passed, 97% overall coverage
 ```
 
 ## External Tools (Optional)
