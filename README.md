@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-400%2B%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-527%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -544,6 +544,78 @@ The SlotRegistry auto-discovers new slot types. No engine code changes needed.
 | `quant-strategy` | scope -> signal research + market research (parallel) -> implement -> review -> approve | Trading strategy development |
 | `security-hardening` | initial audit -> remediation design -> implement -> review -> re-audit -> approve | Two-pass security work |
 | `compliance-audit` | collect evidence -> process audit -> CEO review | Post-pipeline compliance verification (read-only) |
+| `project-inception` | CEO needs-analysis -> PM product-design -> Architect decomposition -> Pipeline generation -> HR recruitment -> CEO launch-approval | **Meta-orchestration**: generates project-specific pipelines from high-level requests |
+
+---
+
+## Meta-Orchestration (Dynamic Pipeline Generation)
+
+Instead of manually choosing a template, you can describe an entire project and have the engine generate a custom pipeline:
+
+> "Create a roguelike dungeon crawler game"
+
+**What happens:**
+
+```mermaid
+graph LR
+    A[CEO<br/>Needs Analysis] --> B[PM<br/>Product Design]
+    B --> C[Architect<br/>Decomposition]
+    C --> D[Generator<br/>Pipeline Code Gen]
+    D --> E[HR<br/>Recruitment]
+    E --> F[CEO<br/>Launch Approval]
+```
+
+1. **NLMatcher** routes to `project-inception` template (weight 1.5, highest priority)
+2. **CEO** analyzes user request, extracts requirements
+3. **PM** designs product scope, features, creative direction
+4. **Architect** decomposes into a `ProjectBlueprint` YAML (subsystems, roles, phases, dependencies)
+5. **PipelineGenerator** takes the blueprint and code-generates:
+   - Pipeline YAML (loadable by `PipelineLoader`, valid per `PipelineValidator`)
+   - Custom slot type YAMLs (for novel roles like `game-designer`, `numerical-planner`)
+   - Agent scaffold `.md` files (prompt templates with capabilities front-matter)
+6. **HR** evaluates recruitment needs for each slot using `SlotRegistry`
+7. **CEO** reviews and approves the generated pipeline for execution
+
+### Reuse-First Strategy
+
+The generator matches role capabilities to the 8 existing slot types before creating new ones:
+
+| Role Capabilities | Reuses Existing Type |
+|---|---|
+| `system_design`, `interface_definition` | `designer` |
+| `python_development`, `test_writing` | `implementer` |
+| `code_review`, `cross_validation` | `reviewer` |
+| `security_audit`, `owasp_review` | `auditor` |
+| Novel capabilities (e.g. `game_design`, `level_design`) | Generates new slot type |
+
+### Programmatic Usage
+
+```python
+from pipeline import ProjectPlanner, PipelineGenerator, PipelineLoader, PipelineValidator
+
+# 1. Parse blueprint (output from Architect)
+planner = ProjectPlanner()
+blueprint = planner.parse_blueprint("blueprint.yaml")
+
+# 2. Validate
+result = planner.validate_blueprint(blueprint)
+assert result.is_valid
+
+# 3. Generate pipeline + slot types + agents
+generator = PipelineGenerator()
+gen_result = generator.generate(blueprint)
+
+# 4. Write to disk
+generator.write_all(gen_result, "output/")
+
+# 5. Load and validate the generated pipeline
+loader = PipelineLoader()
+pipeline = loader.load("output/pipelines/my-project.yaml")
+validator = PipelineValidator("output/")
+assert validator.validate(pipeline).is_valid
+
+# 6. Execute with PipelineRunner as usual
+```
 
 ---
 
@@ -577,13 +649,13 @@ agent-orchestrator/
   architect/                       # Architect working directory
     architecture.md                # System architecture document
   engineer/                        # Engine implementation
-    src/pipeline/                  # 13 modules, ~4500 LOC
-    tests/test_pipeline/           # 460+ tests, 97% coverage
+    src/pipeline/                  # 15 modules, ~5500 LOC
+    tests/test_pipeline/           # 527 tests, 97% coverage
   qa/                              # QA review artifacts
   pmo/                             # Project management
   specs/
     pipelines/
-      templates/                   # 6 pipeline templates
+      templates/                   # 7 pipeline templates (incl. project-inception)
       slot-types/                  # 8 slot type definitions
       schema.yaml                  # Pipeline YAML schema
       implementation-guide.md      # Module specs
@@ -609,7 +681,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 460+ passed, 97% overall coverage
+# 527 passed, 97% overall coverage
 ```
 
 ## External Tools (Optional)

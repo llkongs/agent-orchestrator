@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-400%2B%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-527%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -544,6 +544,78 @@ SlotRegistry 会自动发现新的槽位类型。无需修改引擎代码。
 | `quant-strategy` | 范围界定 -> 信号调研 + 市场调研（并行）-> 实现 -> 审查 -> 审批 | 量化交易策略开发 |
 | `security-hardening` | 初始审计 -> 修复设计 -> 实现 -> 审查 -> 复审 -> 审批 | 双轮安全审计加固 |
 | `compliance-audit` | 收集证据 -> 流程审计 -> CEO 审查 | 事后合规审计（只读） |
+| `project-inception` | CEO 需求分析 -> PM 产品设计 -> 架构师分解 -> 流水线代码生成 -> HR 招聘 -> CEO 启动审批 | **元编排**：从高层需求自动生成项目专属流水线 |
+
+---
+
+## 元编排（动态流水线生成）
+
+不再需要手动选择模板，你可以描述整个项目，让引擎自动生成定制流水线：
+
+> "创建一个roguelike地下城游戏"
+
+**流程：**
+
+```mermaid
+graph LR
+    A[CEO<br/>需求分析] --> B[PM<br/>产品设计]
+    B --> C[架构师<br/>项目分解]
+    C --> D[生成器<br/>流水线代码生成]
+    D --> E[HR<br/>人才招聘]
+    E --> F[CEO<br/>启动审批]
+```
+
+1. **NLMatcher** 路由到 `project-inception` 模板（权重 1.5，最高优先级）
+2. **CEO** 分析用户需求，提取核心要求
+3. **PM** 设计产品范围、功能、创意方向
+4. **架构师** 分解为 `ProjectBlueprint` YAML（子系统、角色、阶段、依赖）
+5. **PipelineGenerator** 接收蓝图，代码生成：
+   - 流水线 YAML（可被 `PipelineLoader` 加载，通过 `PipelineValidator` 验证）
+   - 自定义槽位类型 YAML（如 `game-designer`、`numerical-planner` 等新角色）
+   - 智能体脚手架 `.md` 文件（带能力声明的提示词模板）
+6. **HR** 使用 `SlotRegistry` 评估每个槽位的招聘需求
+7. **CEO** 审查并批准生成的流水线
+
+### 复用优先策略
+
+生成器优先将角色能力匹配到 8 种现有槽位类型，只有真正新颖的角色才生成新类型：
+
+| 角色能力 | 复用现有类型 |
+|----------|------------|
+| `system_design`, `interface_definition` | `designer` |
+| `python_development`, `test_writing` | `implementer` |
+| `code_review`, `cross_validation` | `reviewer` |
+| `security_audit`, `owasp_review` | `auditor` |
+| 新颖能力（如 `game_design`, `level_design`） | 生成新槽位类型 |
+
+### 编程接口
+
+```python
+from pipeline import ProjectPlanner, PipelineGenerator, PipelineLoader, PipelineValidator
+
+# 1. 解析蓝图（架构师的输出）
+planner = ProjectPlanner()
+blueprint = planner.parse_blueprint("blueprint.yaml")
+
+# 2. 验证
+result = planner.validate_blueprint(blueprint)
+assert result.is_valid
+
+# 3. 生成流水线 + 槽位类型 + 智能体
+generator = PipelineGenerator()
+gen_result = generator.generate(blueprint)
+
+# 4. 写入磁盘
+generator.write_all(gen_result, "output/")
+
+# 5. 加载并验证生成的流水线
+loader = PipelineLoader()
+pipeline = loader.load("output/pipelines/my-project.yaml")
+validator = PipelineValidator("output/")
+assert validator.validate(pipeline).is_valid
+
+# 6. 像往常一样用 PipelineRunner 执行
+```
 
 ---
 
@@ -565,13 +637,13 @@ agent-orchestrator/
   architect/                       # 架构师工作目录
     architecture.md                # 系统架构文档
   engineer/                        # 引擎实现
-    src/pipeline/                  # 13 个模块，约 4500 行代码
-    tests/test_pipeline/           # 460+ 个测试，97% 覆盖率
+    src/pipeline/                  # 15 个模块，约 5500 行代码
+    tests/test_pipeline/           # 527 个测试，97% 覆盖率
   qa/                              # QA 审查产物
   pmo/                             # 项目管理
   specs/
     pipelines/
-      templates/                   # 6 个流水线模板
+      templates/                   # 7 个流水线模板（含 project-inception 元编排）
       slot-types/                  # 8 个槽位类型定义
       schema.yaml                  # 流水线 YAML 模式
       implementation-guide.md      # 模块实现规格
@@ -597,7 +669,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 460+ 个测试通过，97% 整体覆盖率
+# 527 个测试通过，97% 整体覆盖率
 ```
 
 ## 外部工具（可选）
