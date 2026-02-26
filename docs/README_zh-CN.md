@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-270%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-400%2B%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -17,6 +17,7 @@
   <a href="#使用场景">使用场景</a> |
   <a href="#槽位协议">槽位协议</a> |
   <a href="#编写流水线">编写流水线</a> |
+  <a href="getting-started-as-team-lead.md">团队负责人指南</a> |
   <a href="../README.md">English</a>
 </p>
 
@@ -494,6 +495,7 @@ pipeline:
 | `approver` | 治理 | 通过/拒绝决策 | `decision_making` |
 | `deployer` | 运维 | 部署到环境 | `deployment`, `ssh_operations`, `service_management` |
 | `auditor` | 安全 | 安全审计 | `security_audit`, `owasp_review`, `infrastructure_review` |
+| `compliance-auditor` | 合规 | 事后合规审计 | `compliance_audit`, `evidence_collection` |
 
 ### 创建新的槽位类型
 
@@ -541,6 +543,7 @@ SlotRegistry 会自动发现新的槽位类型。无需修改引擎代码。
 | `hotfix` | 修复 -> 审查 -> 审批 -> 部署 | 紧急 bug 修复（跳过设计） |
 | `quant-strategy` | 范围界定 -> 信号调研 + 市场调研（并行）-> 实现 -> 审查 -> 审批 | 量化交易策略开发 |
 | `security-hardening` | 初始审计 -> 修复设计 -> 实现 -> 审查 -> 复审 -> 审批 | 双轮安全审计加固 |
+| `compliance-audit` | 收集证据 -> 流程审计 -> CEO 审查 | 事后合规审计（只读） |
 
 ---
 
@@ -562,14 +565,14 @@ agent-orchestrator/
   architect/                       # 架构师工作目录
     architecture.md                # 系统架构文档
   engineer/                        # 引擎实现
-    src/pipeline/                  # 9 个模块，约 1065 行代码
-    tests/test_pipeline/           # 270 个测试，97% 覆盖率
+    src/pipeline/                  # 12 个模块，约 4300 行代码
+    tests/test_pipeline/           # 400+ 个测试，97% 覆盖率
   qa/                              # QA 审查产物
   pmo/                             # 项目管理
   specs/
     pipelines/
-      templates/                   # 5 个流水线模板
-      slot-types/                  # 7 个槽位类型定义
+      templates/                   # 6 个流水线模板
+      slot-types/                  # 8 个槽位类型定义
       schema.yaml                  # 流水线 YAML 模式
       implementation-guide.md      # 模块实现规格
     integration-contract.md        # 接口契约
@@ -577,8 +580,13 @@ agent-orchestrator/
   state/                           # 运行时状态（引擎管理）
     active/                        # 运行中的流水线
     archive/                       # 已完成的流水线
+  constitution.md                    # 项目宪法（6 篇条款）
+  CLAUDE.md                          # 项目总览 + 上下文管理
   docs/
     README_zh-CN.md                # 中文文档（本文件）
+    getting-started-as-team-lead.md  # CEO/团队负责人实战指南
+    team-initialization-protocol.md  # 4 角色 + 7 步初始化工作流
+    team-communication-standards.md  # 团队沟通规范
   FILE-STANDARD.md                 # 目录规范
 ```
 
@@ -589,7 +597,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 270 个测试通过，97% 整体覆盖率
+# 400+ 个测试通过，97% 整体覆盖率
 ```
 
 ## 贡献指南

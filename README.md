@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-270%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-400%2B%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -17,6 +17,7 @@
   <a href="#use-cases">Use Cases</a> |
   <a href="#slot-protocol">Slot Protocol</a> |
   <a href="#writing-pipelines">Writing Pipelines</a> |
+  <a href="docs/getting-started-as-team-lead.md">Team Lead Guide</a> |
   <a href="docs/README_zh-CN.md">中文文档</a>
 </p>
 
@@ -494,6 +495,7 @@ Parameters use `{param_name}` placeholders that get resolved at runtime.
 | `approver` | governance | Go/No-Go decisions | `decision_making` |
 | `deployer` | operations | Deploy to environments | `deployment`, `ssh_operations`, `service_management` |
 | `auditor` | security | Security audits | `security_audit`, `owasp_review`, `infrastructure_review` |
+| `compliance-auditor` | compliance | Post-pipeline compliance verification | `compliance_audit`, `evidence_collection` |
 
 ### Creating a New Slot Type
 
@@ -541,6 +543,7 @@ The SlotRegistry auto-discovers new slot types. No engine code changes needed.
 | `hotfix` | fix -> review -> approve -> deploy | Urgent bug fixes (skips design) |
 | `quant-strategy` | scope -> signal research + market research (parallel) -> implement -> review -> approve | Trading strategy development |
 | `security-hardening` | initial audit -> remediation design -> implement -> review -> re-audit -> approve | Two-pass security work |
+| `compliance-audit` | collect evidence -> process audit -> CEO review | Post-pipeline compliance verification (read-only) |
 
 ---
 
@@ -554,6 +557,18 @@ The system prevents AI agents from fabricating test results:
 
 ---
 
+## Process Rules
+
+> **永远不要简化流程。** 遵循流程把事情做对，比做成一坨屎要有用得多。不遵循流程，最后就是一坨屎。
+
+These rules are non-negotiable. No agent, no team lead, no one -- including the PMO -- is authorized to waive or "streamline" them.
+
+- **HR research is mandatory before spawning any agent.** The flow is: identify a needed role -> HR researches industry-leading talent profiles -> HR produces the agent `.md` based on research -> only then spawn the agent. Skipping HR research produces generic, low-quality agent prompts.
+- **Reject any suggestion to "simplify the process."** If anyone (including the PMO) proposes cutting steps for speed, the answer is no.
+- **Process correctness > speed.** The pipeline exists to enforce quality gates. Bypassing gates to move faster defeats the entire purpose of having a pipeline.
+
+---
+
 ## Project Structure
 
 ```
@@ -562,14 +577,14 @@ agent-orchestrator/
   architect/                       # Architect working directory
     architecture.md                # System architecture document
   engineer/                        # Engine implementation
-    src/pipeline/                  # 9 modules, ~1065 LOC
-    tests/test_pipeline/           # 270 tests, 97% coverage
+    src/pipeline/                  # 12 modules, ~4300 LOC
+    tests/test_pipeline/           # 400+ tests, 97% coverage
   qa/                              # QA review artifacts
   pmo/                             # Project management
   specs/
     pipelines/
-      templates/                   # 5 pipeline templates
-      slot-types/                  # 7 slot type definitions
+      templates/                   # 6 pipeline templates
+      slot-types/                  # 8 slot type definitions
       schema.yaml                  # Pipeline YAML schema
       implementation-guide.md      # Module specs
     integration-contract.md        # Interface contracts
@@ -577,8 +592,13 @@ agent-orchestrator/
   state/                           # Runtime state (engine-managed)
     active/                        # Running pipelines
     archive/                       # Completed pipelines
+  constitution.md                    # Project constitution (6 articles)
+  CLAUDE.md                          # Project overview + context management
   docs/
     README_zh-CN.md                # Chinese documentation
+    getting-started-as-team-lead.md  # CEO/Team Lead practical guide
+    team-initialization-protocol.md  # 4 roles + 7-step init workflow
+    team-communication-standards.md  # Team communication rules
   FILE-STANDARD.md                 # Directory conventions
 ```
 
@@ -589,7 +609,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 270 passed, 97% overall coverage
+# 400+ passed, 97% overall coverage
 ```
 
 ## Contributing
