@@ -1,0 +1,404 @@
+# Project Inception Pipeline (Meta-Orchestration)
+# Template: project-inception
+# Version: 1.0.0
+# Description: Meta-pipeline that takes a high-level user request and
+#   generates a project-specific pipeline, slot types, and agent scaffolds.
+#   Flow: CEO needs-analysis -> PM product-design -> Architect decomposition
+#         -> Pipeline generation -> HR recruitment -> CEO launch-approval
+#
+# This is the "inception" layer: a pipeline that produces other pipelines.
+# It bridges the gap between a user saying "create a roguelike game" and
+# having a fully-defined pipeline with specialized roles ready to execute.
+
+pipeline:
+  id: "project-inception"
+  name: "Project Inception (Meta-Orchestration)"
+  version: "1.0.0"
+  description: >
+    Meta-pipeline for project inception. Takes a high-level user request,
+    runs CEO/PM/Architect discussion to decompose it into subsystems and roles,
+    generates a project-specific pipeline with custom slot types and agent
+    scaffolds, then has HR evaluate recruitment needs before CEO approves launch.
+  created_by: "meta-orchestration"
+  created_at: "2026-02-26T00:00:00Z"
+
+  parameters:
+    - name: "user_request"
+      type: "string"
+      required: true
+      description: "The user's original request, verbatim and unmodified"
+    - name: "project_domain"
+      type: "string"
+      required: false
+      default: "auto-detect"
+      description: "Project domain hint (game, web-app, trading, mobile, etc.)"
+
+  # ── Explicit Data Flow Edges ──────────────────────────────────────────────
+  data_flow:
+    # CEO -> PM: requirements document
+    - from_slot: "ceo-needs-analysis"
+      to_slot: "pm-product-design"
+      artifact: "requirements_doc"
+      required: true
+
+    # PM -> Architect: product specification
+    - from_slot: "pm-product-design"
+      to_slot: "architect-decomposition"
+      artifact: "product_spec"
+      required: true
+
+    # CEO -> Architect: raw requirements (for cross-reference)
+    - from_slot: "ceo-needs-analysis"
+      to_slot: "architect-decomposition"
+      artifact: "requirements_doc"
+      required: true
+
+    # Architect -> Generator: project blueprint
+    - from_slot: "architect-decomposition"
+      to_slot: "pipeline-generation"
+      artifact: "project_blueprint"
+      required: true
+
+    # Generator -> HR: generated pipeline + slot types
+    - from_slot: "pipeline-generation"
+      to_slot: "hr-recruitment"
+      artifact: "generated_pipeline"
+      required: true
+
+    - from_slot: "pipeline-generation"
+      to_slot: "hr-recruitment"
+      artifact: "generated_slot_types"
+      required: true
+
+    # HR -> CEO: recruitment report
+    - from_slot: "hr-recruitment"
+      to_slot: "ceo-launch-approval"
+      artifact: "recruitment_report"
+      required: true
+
+    # Generator -> CEO: generated pipeline (for review)
+    - from_slot: "pipeline-generation"
+      to_slot: "ceo-launch-approval"
+      artifact: "generated_pipeline"
+      required: true
+
+  # ── Slots ─────────────────────────────────────────────────────────────────
+  slots:
+    # ── Slot 1: CEO Needs Analysis ──────────────────────────────────────────
+    - id: "ceo-needs-analysis"
+      slot_type: "designer"
+      name: "CEO Needs Analysis"
+
+      inputs:
+        - name: "user_request"
+          from_slot: "external"
+          artifact: "user_request"
+          required: true
+
+      outputs:
+        - name: "requirements_doc"
+          type: "design_doc"
+          validation: "exists"
+
+      pre_conditions: []
+      post_conditions:
+        - check: "Requirements document produced"
+          type: "artifact_valid"
+          target: "requirements_doc"
+
+      depends_on: []
+
+      task:
+        objective: >
+          Analyze the user's request: "{user_request}".
+          Extract core requirements, identify the problem domain,
+          clarify ambiguities, and produce a structured requirements document.
+          Include: project goals, target users, key constraints, success metrics.
+          IMPORTANT: Preserve user's original words verbatim in the requirements.
+        context_files:
+          - "constitution.md"
+        deliverables:
+          - "Requirements document with user goals, constraints, and success metrics"
+          - "Domain classification (game, web-app, trading, mobile, etc.)"
+          - "List of clarifying questions (if any)"
+        constraints:
+          - "Must include user's original request verbatim"
+          - "Must identify project domain"
+          - "Must not make creative decisions — leave those to PM"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # ── Slot 2: PM Product Design ───────────────────────────────────────────
+    - id: "pm-product-design"
+      slot_type: "designer"
+      name: "PM Product Design"
+
+      inputs:
+        - name: "requirements_doc"
+          from_slot: "ceo-needs-analysis"
+          artifact: "requirements_doc"
+          required: true
+
+      outputs:
+        - name: "product_spec"
+          type: "design_doc"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Requirements document available"
+          type: "artifact_valid"
+          target: "requirements_doc"
+
+      post_conditions:
+        - check: "Product specification produced"
+          type: "artifact_valid"
+          target: "product_spec"
+
+      depends_on: ["ceo-needs-analysis"]
+
+      task:
+        objective: >
+          Design the product based on CEO's requirements analysis.
+          Define: product scope, features, user stories, creative direction,
+          success criteria, and what makes this product attractive/unique.
+          For domain "{project_domain}": consider industry best practices,
+          competitive landscape, and user expectations.
+        deliverables:
+          - "Product specification with feature breakdown"
+          - "Creative direction and unique selling points"
+          - "User stories and acceptance criteria"
+          - "Prioritized feature list (P0/P1/P2)"
+        constraints:
+          - "Must address all requirements from CEO analysis"
+          - "Must be specific enough for architect to decompose"
+          - "Must include measurable success criteria"
+
+      execution:
+        timeout_hours: 3.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # ── Slot 3: Architect Decomposition ─────────────────────────────────────
+    - id: "architect-decomposition"
+      slot_type: "designer"
+      name: "Architecture Decomposition"
+
+      inputs:
+        - name: "product_spec"
+          from_slot: "pm-product-design"
+          artifact: "product_spec"
+          required: true
+        - name: "requirements_doc"
+          from_slot: "ceo-needs-analysis"
+          artifact: "requirements_doc"
+          required: true
+
+      outputs:
+        - name: "project_blueprint"
+          type: "design_doc"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Product specification available"
+          type: "artifact_valid"
+          target: "product_spec"
+
+      post_conditions:
+        - check: "Project blueprint produced"
+          type: "artifact_valid"
+          target: "project_blueprint"
+
+      depends_on: ["pm-product-design"]
+
+      task:
+        objective: >
+          Decompose the product into a ProjectBlueprint:
+          1. Identify subsystems (major components)
+          2. Define specialist roles needed (with capabilities)
+          3. Design execution phases with dependencies
+          4. Map roles to phases (who does what, when)
+          5. Output a valid ProjectBlueprint YAML
+          The blueprint must be parseable by ProjectPlanner.parse_blueprint().
+        context_files:
+          - "specs/pipelines/slot-types/"
+          - "agents/"
+        deliverables:
+          - "ProjectBlueprint YAML file"
+          - "Architecture rationale document"
+          - "Role-to-existing-slot-type mapping (reuse-first)"
+        constraints:
+          - "Blueprint must pass ProjectPlanner.validate_blueprint()"
+          - "Reuse existing slot types when role capabilities match"
+          - "Mark is_custom_type=true only for genuinely novel roles"
+          - "Phase dependencies must form a DAG (no cycles)"
+          - "Every role must appear in at least one phase"
+          - "Use kebab-case for all IDs"
+
+      execution:
+        timeout_hours: 4.0
+        retry_on_fail: true
+        max_retries: 2
+
+    # ── Slot 4: Pipeline Generation ─────────────────────────────────────────
+    - id: "pipeline-generation"
+      slot_type: "implementer"
+      name: "Pipeline & Slot Type Generation"
+
+      inputs:
+        - name: "project_blueprint"
+          from_slot: "architect-decomposition"
+          artifact: "project_blueprint"
+          required: true
+
+      outputs:
+        - name: "generated_pipeline"
+          type: "config"
+          validation: "exists"
+        - name: "generated_slot_types"
+          type: "config"
+          validation: "exists"
+        - name: "generated_agents"
+          type: "agent_prompt"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Project blueprint available and valid"
+          type: "artifact_valid"
+          target: "project_blueprint"
+
+      post_conditions:
+        - check: "Generated pipeline is valid"
+          type: "custom"
+          target: "pipeline_yaml_validates"
+
+      depends_on: ["architect-decomposition"]
+
+      task:
+        objective: >
+          Run PipelineGenerator on the ProjectBlueprint to produce:
+          1. Pipeline YAML (loadable by PipelineLoader, valid per PipelineValidator)
+          2. Custom slot type YAML files (for roles with is_custom_type=true)
+          3. Agent scaffold .md files (prompt templates for each role)
+          Write all generated files using PipelineGenerator.write_all().
+        deliverables:
+          - "Generated pipeline YAML file"
+          - "Custom slot type YAML files (if any)"
+          - "Agent scaffold .md files"
+        constraints:
+          - "Generated pipeline must pass PipelineLoader.load() without errors"
+          - "Generated pipeline must pass PipelineValidator.validate() with is_valid=True"
+          - "Use yaml.safe_dump() only"
+          - "No shell=True in any subprocess calls"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: true
+        max_retries: 2
+
+    # ── Slot 5: HR Recruitment ──────────────────────────────────────────────
+    - id: "hr-recruitment"
+      slot_type: "researcher"
+      name: "HR Talent Recruitment"
+
+      inputs:
+        - name: "generated_pipeline"
+          from_slot: "pipeline-generation"
+          artifact: "generated_pipeline"
+          required: true
+        - name: "generated_slot_types"
+          from_slot: "pipeline-generation"
+          artifact: "generated_slot_types"
+          required: true
+
+      outputs:
+        - name: "recruitment_report"
+          type: "research"
+          validation: "exists"
+
+      pre_conditions:
+        - check: "Generated pipeline available"
+          type: "artifact_valid"
+          target: "generated_pipeline"
+
+      post_conditions:
+        - check: "Recruitment report produced"
+          type: "artifact_valid"
+          target: "recruitment_report"
+
+      depends_on: ["pipeline-generation"]
+
+      task:
+        objective: >
+          For each slot in the generated pipeline:
+          1. Load the slot type definition and its required_capabilities
+          2. Search existing agents for capability matches (SlotRegistry.find_compatible_agents)
+          3. Evaluate fit: is the existing agent sufficient, or does the project need
+             a more specialized prompt?
+          4. For custom slot types: recommend what kind of agent prompt to write
+          5. Produce a recruitment report with slot-by-slot recommendations
+          Ensure industry-leading talent for each position.
+        deliverables:
+          - "Recruitment report with agent-to-slot recommendations"
+          - "Gap analysis: which slots need new agent prompts"
+          - "Capability coverage matrix"
+        constraints:
+          - "Must evaluate ALL slots in the generated pipeline"
+          - "Must use SlotRegistry for capability matching"
+          - "Must flag any slots with zero compatible agents"
+
+      execution:
+        timeout_hours: 3.0
+        retry_on_fail: true
+        max_retries: 1
+
+    # ── Slot 6: CEO Launch Approval ─────────────────────────────────────────
+    - id: "ceo-launch-approval"
+      slot_type: "approver"
+      name: "CEO Launch Approval"
+
+      inputs:
+        - name: "recruitment_report"
+          from_slot: "hr-recruitment"
+          artifact: "recruitment_report"
+          required: true
+        - name: "generated_pipeline"
+          from_slot: "pipeline-generation"
+          artifact: "generated_pipeline"
+          required: true
+
+      outputs:
+        - name: "launch_decision"
+          type: "approval"
+          validation: "none"
+
+      pre_conditions:
+        - check: "Recruitment report available"
+          type: "artifact_valid"
+          target: "recruitment_report"
+
+      post_conditions: []
+
+      depends_on: ["hr-recruitment"]
+
+      task:
+        objective: >
+          Review the generated pipeline and recruitment report.
+          Verify:
+          1. Pipeline topology matches the original user request
+          2. All roles are staffed (or gaps are acceptable)
+          3. Phase dependencies are logical
+          4. No unnecessary complexity
+          Make Go/No-Go decision to launch the generated pipeline.
+        deliverables:
+          - "Go/No-Go decision with rationale"
+        constraints:
+          - "Must verify pipeline covers all requirements from needs-analysis"
+          - "Must verify no critical staffing gaps"
+          - "Must verify user's original request is faithfully represented"
+
+      execution:
+        timeout_hours: 2.0
+        retry_on_fail: false

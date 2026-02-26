@@ -50,6 +50,18 @@ from pipeline.models import (
 )
 from pipeline.nl_matcher import NLMatcher, TemplateMatch
 from pipeline.observer import ComplianceObserver
+from pipeline.pipeline_generator import GenerationResult, PipelineGenerator
+from pipeline.project_planner import (
+    BlueprintCycleError,
+    BlueprintLoadError,
+    BlueprintValidationResult,
+    Phase,
+    PhaseSlot,
+    ProjectBlueprint,
+    ProjectPlanner,
+    RoleRequirement,
+    Subsystem,
+)
 from pipeline.runner import PipelineExecutionError, PipelineRunner
 from pipeline.slot_contract import SlotContractManager, SlotInput, SlotOutputValidation
 from pipeline.slot_registry import SlotRegistry, SlotTypeNotFoundError
@@ -119,4 +131,17 @@ __all__ = [
     # NL Matcher
     "NLMatcher",
     "TemplateMatch",
+    # Project Planner (Meta-Orchestration)
+    "ProjectPlanner",
+    "ProjectBlueprint",
+    "RoleRequirement",
+    "Subsystem",
+    "Phase",
+    "PhaseSlot",
+    "BlueprintValidationResult",
+    "BlueprintLoadError",
+    "BlueprintCycleError",
+    # Pipeline Generator (Meta-Orchestration)
+    "PipelineGenerator",
+    "GenerationResult",
 ]

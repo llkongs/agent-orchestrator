@@ -5,7 +5,7 @@
 Agent Orchestrator is a pluggable, slot-based pipeline engine for multi-agent development workflows.
 
 - **Core insight**: Topology and personnel are orthogonal concerns
-- 13 pipeline modules / ~4500 LOC / 460+ tests
+- 15 pipeline modules / ~5500 LOC / 520+ tests
 - Dependencies: Python 3.11+ / PyYAML only / stdlib only
 
 ## 2. Constitution
@@ -99,10 +99,14 @@ models.py (zero deps -- foundation)
     |
     +--- context_router.py (L0/L1/L2 context routing; delegates to ov_context_router)
     |
+    +--- project_planner.py (depends on models; blueprint data model + validation)
+    |
+    +--- pipeline_generator.py (depends on models, project_planner; generates pipelines from blueprints)
+    |
     +--- runner.py (depends on ALL above)
 ```
 
-### Pipeline Modules (13)
+### Pipeline Modules (15)
 
 | Module | Responsibility |
 |--------|---------------|
@@ -119,6 +123,8 @@ models.py (zero deps -- foundation)
 | `observer.py` | Compliance observation |
 | `context_router.py` | L0/L1/L2 context routing (delegates to OV when available) |
 | `ov_context_router.py` | OpenViking-backed context retrieval via `ov` CLI |
+| `project_planner.py` | Blueprint data model + validation (meta-orchestration) |
+| `pipeline_generator.py` | Pipeline/slot-type/agent generation from blueprints |
 
 ## 6. Quality Gates
 
