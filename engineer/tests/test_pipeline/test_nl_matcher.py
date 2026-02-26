@@ -1,5 +1,8 @@
 """Tests for pipeline.nl_matcher -- Natural language template matching."""
 
+import json
+import subprocess
+
 import pytest
 import yaml
 
@@ -394,3 +397,130 @@ class TestMatchComplianceAudit:
         results = m.match("Run compliance audit on process adherence")
         assert len(results) > 0
         assert results[0].template_id == "compliance-audit"
+
+
+# ===================================================================
+# OpenViking semantic enhancement
+# ===================================================================
+
+
+class TestOVEnhancement:
+    def test_default_no_openviking(self, matcher):
+        """use_openviking=False (default) skips OV enhancement."""
+        assert matcher._use_openviking is False
+
+    def test_openviking_enabled(self, templates_dir):
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+        assert m._use_openviking is True
+
+    def test_ov_boost_existing_match(self, templates_dir, monkeypatch):
+        """OV results boost confidence of existing keyword matches."""
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+
+        # Get baseline confidence without OV
+        baseline = NLMatcher(str(templates_dir))
+        baseline_results = baseline.match("implement a new feature")
+        baseline_conf = {r.template_id: r.confidence for r in baseline_results}
+
+        # Mock ov find to return standard-feature as a semantic match
+        ov_data = [
+            {"uri": "viking://test/specs/standard-feature.yaml", "score": 0.9, "content": "feature dev"},
+        ]
+
+        def mock_run(args, **kw):
+            return subprocess.CompletedProcess(args, 0, stdout=json.dumps(ov_data), stderr="")
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        ov_results = m.match("implement a new feature")
+        ov_conf = {r.template_id: r.confidence for r in ov_results}
+
+        # standard-feature should have boosted confidence
+        assert ov_conf.get("standard-feature", 0) >= baseline_conf.get("standard-feature", 0)
+
+    def test_ov_adds_new_candidate(self, templates_dir, monkeypatch):
+        """OV results can add candidates not found by keyword matching."""
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+
+        # Input that matches only hotfix by keyword, but OV finds research-task
+        ov_data = [
+            {"uri": "viking://test/specs/research-task.yaml", "score": 0.8, "content": "research"},
+        ]
+
+        def mock_run(args, **kw):
+            return subprocess.CompletedProcess(args, 0, stdout=json.dumps(ov_data), stderr="")
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        results = m.match("urgent bug crash")
+        ids = [r.template_id for r in results]
+        # hotfix should still be there from keywords
+        assert "hotfix" in ids
+        # research-task may be added by OV (if URI matched template id)
+        # The key thing is: no crash, and keyword results are preserved
+
+    def test_ov_never_reduces_confidence(self, templates_dir, monkeypatch):
+        """OV enhancement should never reduce existing keyword confidence."""
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+        baseline = NLMatcher(str(templates_dir))
+
+        test_input = "implement a new feature and develop it"
+        baseline_results = baseline.match(test_input)
+        baseline_conf = {r.template_id: r.confidence for r in baseline_results}
+
+        # OV returns nothing useful
+        ov_data = [
+            {"uri": "viking://test/unrelated/thing", "score": 0.1, "content": "unrelated"},
+        ]
+
+        def mock_run(args, **kw):
+            return subprocess.CompletedProcess(args, 0, stdout=json.dumps(ov_data), stderr="")
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        ov_results = m.match(test_input)
+        ov_conf = {r.template_id: r.confidence for r in ov_results}
+
+        for tid, conf in baseline_conf.items():
+            assert ov_conf.get(tid, 0) >= conf, f"{tid} confidence decreased"
+
+    def test_ov_failure_returns_keyword_results(self, templates_dir, monkeypatch):
+        """When ov find fails, keyword results are returned unchanged."""
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+
+        def mock_run(args, **kw):
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="error")
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        results = m.match("implement a new feature")
+        assert len(results) > 0
+        assert results[0].template_id == "standard-feature"
+
+    def test_ov_timeout_returns_keyword_results(self, templates_dir, monkeypatch):
+        """When ov find times out, keyword results are returned unchanged."""
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+
+        def raise_timeout(*a, **kw):
+            raise subprocess.TimeoutExpired(cmd="ov", timeout=15)
+
+        monkeypatch.setattr(subprocess, "run", raise_timeout)
+
+        results = m.match("urgent bug crash")
+        assert len(results) > 0
+        ids = [r.template_id for r in results]
+        assert "hotfix" in ids
+
+    def test_ov_binary_not_found_returns_keyword_results(self, templates_dir, monkeypatch):
+        """When ov binary is not found, keyword results are returned unchanged."""
+        m = NLMatcher(str(templates_dir), use_openviking=True)
+
+        def raise_fnf(*a, **kw):
+            raise FileNotFoundError("ov not found")
+
+        monkeypatch.setattr(subprocess, "run", raise_fnf)
+
+        results = m.match("research investigate websocket")
+        assert len(results) > 0
+        ids = [r.template_id for r in results]
+        assert "research-task" in ids

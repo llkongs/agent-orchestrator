@@ -18,6 +18,7 @@ Usage:
 
 from pipeline.context_router import ContextRouter
 from pipeline.enforcer import SlotEnforcer, EnforcementRule, EnforcementResult, EnforcementAction
+from pipeline.ov_context_router import OVContextRouter
 from pipeline.gate_checker import GateChecker
 from pipeline.loader import PipelineLoader, PipelineLoadError, PipelineParameterError
 from pipeline.models import (
@@ -58,6 +59,7 @@ from pipeline.validator import PipelineCycleError, PipelineValidator, Validation
 __all__ = [
     # Context Router
     "ContextRouter",
+    "OVContextRouter",
     "ContextItem",
     "ContextTier",
     # Enforcer

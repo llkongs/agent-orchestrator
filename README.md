@@ -577,8 +577,8 @@ agent-orchestrator/
   architect/                       # Architect working directory
     architecture.md                # System architecture document
   engineer/                        # Engine implementation
-    src/pipeline/                  # 12 modules, ~4300 LOC
-    tests/test_pipeline/           # 400+ tests, 97% coverage
+    src/pipeline/                  # 13 modules, ~4500 LOC
+    tests/test_pipeline/           # 460+ tests, 97% coverage
   qa/                              # QA review artifacts
   pmo/                             # Project management
   specs/
@@ -609,8 +609,54 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 400+ passed, 97% overall coverage
+# 460+ passed, 97% overall coverage
 ```
+
+## External Tools (Optional)
+
+Agent Orchestrator optionally integrates with two external tools for enhanced spec-driven development and context management. Both are **completely optional** -- all features work without them via built-in fallbacks.
+
+### Spec Kit
+
+[Spec Kit](https://github.com/nicholasgriffintn/specify) provides structured specification workflows. When installed:
+
+- `.specify/` directory contains templates, memory, and scripts
+- 9 `speckit.*` slash commands available in `.claude/commands/`
+- `specify init --ai claude` sets up the project
+- Constitution is synced to `.specify/memory/constitution.md`
+
+```bash
+# Install
+pip install specify-cli  # or: go install github.com/nicholasgriffintn/specify@latest
+
+# Initialize (already done for this project)
+specify init --here --ai claude
+```
+
+### OpenViking
+
+[OpenViking](https://github.com/nicholasgriffintn/openviking) provides agent-native context management with `viking://` URIs and semantic search. When running:
+
+- `ov_context_router.py` provides L0/L1/L2 context via `ov abstract`/`ov overview`/`ov find`
+- `context_router.py` delegates to OV when `use_openviking=True` (default: `False`)
+- `nl_matcher.py` boosts keyword matching with `ov find` semantic search
+- All OV calls are via `subprocess.run()` -- no Python imports (Constitution Art.2 compliant)
+
+```bash
+# Install (requires Go + C toolchain)
+go install github.com/nicholasgriffintn/openviking/cmd/ov@latest
+
+# Start server and register resources
+bash scripts/ov-serve.sh start
+bash scripts/ov-bootstrap.sh
+
+# Verify
+ov health && ov ls viking://agent-orchestrator/
+```
+
+**Graceful degradation**: If OV is not running, all code paths fall back to file-scan with zero user impact.
+
+---
 
 ## Contributing
 

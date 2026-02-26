@@ -3,10 +3,14 @@
 Scans a project for .abstract.md and .overview.md files, builds a tiered
 context list for each slot based on its type, and manages token budget
 allocation.  Only depends on models.py + stdlib (pathlib, yaml, os, re).
+
+When *use_openviking* is ``True``, delegates to :class:`OVContextRouter`
+first and falls back to the file-scan implementation on failure.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -14,6 +18,8 @@ from pathlib import Path
 import yaml
 
 from pipeline.models import ContextItem, ContextTier, Pipeline, Slot
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -44,11 +50,29 @@ class ContextRouter:
     based on its type.
     """
 
-    def __init__(self, project_root: str, constitution_path: str) -> None:
+    def __init__(
+        self,
+        project_root: str,
+        constitution_path: str,
+        *,
+        use_openviking: bool = False,
+        ov_binary: str = "ov",
+        ov_namespace: str = "viking://agent-orchestrator",
+    ) -> None:
         self._project_root = Path(project_root)
         self._constitution_path = Path(constitution_path)
         self._abstract_files: list[str] = []  # Relative paths
         self._overview_files: list[str] = []  # Relative paths
+        self._use_openviking = use_openviking
+        self._ov_router: "OVContextRouter | None" = None
+        if use_openviking:
+            from pipeline.ov_context_router import OVContextRouter
+
+            self._ov_router = OVContextRouter(
+                project_root,
+                ov_binary=ov_binary,
+                ov_namespace=ov_namespace,
+            )
         self._scan_files()
 
     def _scan_files(self) -> None:
@@ -74,10 +98,45 @@ class ContextRouter:
     ) -> list[ContextItem]:
         """Build a tiered context list for the given slot.
 
-        1. Always include constitution.md at L2.
-        2. Load all L0 (.abstract.md) files.
-        3. Based on slot_type, load relevant L1 (.overview.md) files.
-        4. Upgrade within token budget.
+        When OpenViking is enabled and available, delegates to
+        :class:`OVContextRouter` first.  On failure (OV unavailable or
+        returns ``None``), falls back to the file-scan implementation.
+
+        Returns:
+            Ordered list of ContextItem within budget.
+        """
+        if self._ov_router is not None:
+            try:
+                ov_items = self._ov_router.build_context(
+                    slot.slot_type,
+                    getattr(slot.task, "description", ""),
+                    max_tokens=max_tokens,
+                )
+                if ov_items is not None:
+                    logger.debug(
+                        "OV context router returned %d items for slot %s",
+                        len(ov_items), slot.id,
+                    )
+                    return ov_items
+            except Exception:
+                logger.debug(
+                    "OV context router failed, falling back to file scan",
+                    exc_info=True,
+                )
+
+        return self._build_context_from_files(slot, pipeline, max_tokens=max_tokens)
+
+    def _build_context_from_files(
+        self,
+        slot: Slot,
+        pipeline: Pipeline,
+        *,
+        max_tokens: int = 8000,
+    ) -> list[ContextItem]:
+        """Build context by scanning .abstract.md / .overview.md files.
+
+        This is the original file-scan implementation, now used as
+        fallback when OpenViking is unavailable.
 
         Returns:
             Ordered list of ContextItem within budget.

@@ -55,6 +55,9 @@ class PipelineRunner:
         *,
         observers: list[PipelineObserver] | None = None,
         constitution_path: str | None = None,
+        use_openviking: bool = False,
+        ov_binary: str = "ov",
+        ov_namespace: str = "viking://agent-orchestrator",
     ) -> None:
         self._project_root = project_root
         self._loader = PipelineLoader()
@@ -65,7 +68,13 @@ class PipelineRunner:
         self._observers: list[PipelineObserver] = observers or []
         self._context_router: ContextRouter | None = None
         if constitution_path is not None:
-            self._context_router = ContextRouter(project_root, constitution_path)
+            self._context_router = ContextRouter(
+                project_root,
+                constitution_path,
+                use_openviking=use_openviking,
+                ov_binary=ov_binary,
+                ov_namespace=ov_namespace,
+            )
 
     def add_observer(self, observer: PipelineObserver) -> None:
         """Register an observer for pipeline events."""

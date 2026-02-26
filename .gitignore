@@ -36,4 +36,12 @@ Thumbs.db
 
 # Claude Code session data (not project source)
 .claude/
+!.claude/commands/
 memory/
+
+# OpenViking runtime
+.openviking/
+/tmp/ov-serve.*
+
+# Spec Kit cache
+.specify/cache/

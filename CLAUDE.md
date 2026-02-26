@@ -5,7 +5,7 @@
 Agent Orchestrator is a pluggable, slot-based pipeline engine for multi-agent development workflows.
 
 - **Core insight**: Topology and personnel are orthogonal concerns
-- 12 pipeline modules / ~4300 LOC / 400+ tests
+- 13 pipeline modules / ~4500 LOC / 460+ tests
 - Dependencies: Python 3.11+ / PyYAML only / stdlib only
 
 ## 2. Constitution
@@ -62,6 +62,8 @@ Full text: `constitution.md`
 - State: `state/` (active runs and archives)
 - Architecture: `architect/architecture.md`
 - Delivery protocol: `specs/delivery-protocol.md`
+- Spec Kit config: `.specify/`
+- OV bootstrap: `scripts/ov-bootstrap.sh`
 
 ### Run Tests
 
@@ -85,7 +87,7 @@ models.py (zero deps -- foundation)
     |
     +--- gate_checker.py (depends on models, state)
     |
-    +--- nl_matcher.py (depends on models, loader)
+    +--- nl_matcher.py (depends on models, loader; optional OV via subprocess)
     |
     +--- slot_contract.py (slot I/O contracts)
     |
@@ -93,12 +95,14 @@ models.py (zero deps -- foundation)
     |
     +--- observer.py (compliance observation)
     |
-    +--- context_router.py (L0/L1/L2 context routing)
+    +--- ov_context_router.py (depends on models; calls ov CLI via subprocess)
+    |
+    +--- context_router.py (L0/L1/L2 context routing; delegates to ov_context_router)
     |
     +--- runner.py (depends on ALL above)
 ```
 
-### Pipeline Modules (12)
+### Pipeline Modules (13)
 
 | Module | Responsibility |
 |--------|---------------|
@@ -108,12 +112,13 @@ models.py (zero deps -- foundation)
 | `gate_checker.py` | Pre/post condition evaluation |
 | `state.py` | State tracking + persistence |
 | `slot_registry.py` | SlotType loading + agent matching |
-| `nl_matcher.py` | Natural language -> template matching |
+| `nl_matcher.py` | Natural language -> template matching (+ OV semantic boost) |
 | `runner.py` | Pipeline orchestration |
 | `slot_contract.py` | Slot I/O contract management |
 | `enforcer.py` | Slot enforcement rules |
 | `observer.py` | Compliance observation |
-| `context_router.py` | L0/L1/L2 context routing |
+| `context_router.py` | L0/L1/L2 context routing (delegates to OV when available) |
+| `ov_context_router.py` | OpenViking-backed context retrieval via `ov` CLI |
 
 ## 6. Quality Gates
 
@@ -124,3 +129,29 @@ models.py (zero deps -- foundation)
 - suspicious=true blocks deployment (Constitution SS4.6)
 - Checksum integrity on all deliverables (Constitution SS4.3)
 - Cross-validation mandatory: QA independently reproduces metrics (Constitution SS4.9)
+
+## 7. External Tool Integration
+
+### Spec Kit (`specify` CLI)
+
+[Spec Kit](https://github.com/nicholasgriffintn/specify) provides spec-driven development tooling.
+
+- **Config**: `.specify/` directory (templates, memory, scripts)
+- **Slash commands**: 9 `speckit.*` commands in `.claude/commands/`
+- **Constitution sync**: `.specify/memory/constitution.md` mirrors project constitution
+- **Usage**: `specify init`, `specify plan`, `specify implement`
+
+### OpenViking (`ov` CLI)
+
+[OpenViking](https://github.com/nicholasgriffintn/openviking) provides agent-native context management with `viking://` URIs.
+
+- **Namespace**: `viking://agent-orchestrator`
+- **Bootstrap**: `bash scripts/ov-bootstrap.sh` (registers resources + relations)
+- **Server**: `bash scripts/ov-serve.sh start`
+- **Integration points**:
+  - `ov_context_router.py` — L0/L1/L2 context via `ov abstract`/`ov overview`/`ov read`
+  - `context_router.py` — delegates to OV when `use_openviking=True`, falls back to file scan
+  - `nl_matcher.py` — boosts keyword matches with `ov find` semantic search
+  - `/context` command — uses OV when available for richer context
+- **Graceful degradation**: All OV features are opt-in (`use_openviking=False` default). OV unavailable = file-scan fallback, zero impact on existing behavior.
+- **Constitution compliance**: Integrated via `subprocess.run()` only (no Python imports per Art.2).

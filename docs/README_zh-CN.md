@@ -565,8 +565,8 @@ agent-orchestrator/
   architect/                       # 架构师工作目录
     architecture.md                # 系统架构文档
   engineer/                        # 引擎实现
-    src/pipeline/                  # 12 个模块，约 4300 行代码
-    tests/test_pipeline/           # 400+ 个测试，97% 覆盖率
+    src/pipeline/                  # 13 个模块，约 4500 行代码
+    tests/test_pipeline/           # 460+ 个测试，97% 覆盖率
   qa/                              # QA 审查产物
   pmo/                             # 项目管理
   specs/
@@ -597,8 +597,53 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 400+ 个测试通过，97% 整体覆盖率
+# 460+ 个测试通过，97% 整体覆盖率
 ```
+
+## 外部工具（可选）
+
+Agent Orchestrator 可选集成两个外部工具，增强规格驱动开发和上下文管理。两者都**完全可选** -- 所有功能无需它们也能正常工作。
+
+### Spec Kit
+
+[Spec Kit](https://github.com/nicholasgriffintn/specify) 提供结构化规格工作流。安装后：
+
+- `.specify/` 目录包含模板、记忆和脚本
+- 9 个 `speckit.*` 斜杠命令在 `.claude/commands/` 中可用
+- 宪法同步到 `.specify/memory/constitution.md`
+
+```bash
+# 安装
+pip install specify-cli
+
+# 初始化（本项目已完成）
+specify init --here --ai claude
+```
+
+### OpenViking
+
+[OpenViking](https://github.com/nicholasgriffintn/openviking) 提供智能体原生的上下文管理，支持 `viking://` URI 和语义搜索。运行时：
+
+- `ov_context_router.py` 通过 `ov abstract`/`ov overview`/`ov find` 提供 L0/L1/L2 上下文
+- `context_router.py` 在 `use_openviking=True` 时委托给 OV（默认：`False`）
+- `nl_matcher.py` 用 `ov find` 语义搜索增强关键词匹配
+- 所有 OV 调用通过 `subprocess.run()` -- 无 Python 导入（宪法第二条合规）
+
+```bash
+# 安装（需要 Go + C 工具链）
+go install github.com/nicholasgriffintn/openviking/cmd/ov@latest
+
+# 启动服务器并注册资源
+bash scripts/ov-serve.sh start
+bash scripts/ov-bootstrap.sh
+
+# 验证
+ov health && ov ls viking://agent-orchestrator/
+```
+
+**优雅降级**：如果 OV 未运行，所有代码路径回退到文件扫描，对用户零影响。
+
+---
 
 ## 贡献指南
 

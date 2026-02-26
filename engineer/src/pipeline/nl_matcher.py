@@ -3,16 +3,27 @@
 Matches free-text requests (English or Chinese) to pipeline templates
 using keyword matching and regex pattern extraction.  No LLM calls --
 purely deterministic keyword + regex scoring.
+
+When *use_openviking* is ``True``, supplements keyword matches with
+semantic search via ``ov find``.  OV results **only boost** existing
+matches or add new candidates — they never reduce keyword scores.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
+
+_OV_TIMEOUT = 15  # seconds per ov find call
 
 
 @dataclass(frozen=True)
@@ -139,9 +150,19 @@ class NLMatcher:
     candidates sorted by confidence.
     """
 
-    def __init__(self, templates_dir: str) -> None:
+    def __init__(
+        self,
+        templates_dir: str,
+        *,
+        use_openviking: bool = False,
+        ov_binary: str = "ov",
+        ov_namespace: str = "viking://agent-orchestrator",
+    ) -> None:
         self._templates_dir = Path(templates_dir)
         self._templates: dict[str, dict[str, Any]] = {}
+        self._use_openviking = use_openviking
+        self._ov_binary = ov_binary
+        self._ov_namespace = ov_namespace
         self._load_templates()
 
     def match(self, nl_input: str) -> list[TemplateMatch]:
@@ -199,8 +220,111 @@ class NLMatcher:
                 )
             )
 
+        # OV semantic enhancement: boost or add candidates
+        if self._use_openviking:
+            results = self._enhance_with_ov(nl_input, results)
+
         results.sort(key=lambda m: m.confidence, reverse=True)
         return results
+
+    def _enhance_with_ov(
+        self,
+        nl_input: str,
+        keyword_results: list[TemplateMatch],
+    ) -> list[TemplateMatch]:
+        """Boost keyword matches with OpenViking semantic search.
+
+        Strategy: **only add or boost, never reduce**.  OV matches that
+        correspond to an existing keyword result increase its confidence.
+        OV matches not in keyword results are added as new candidates.
+
+        Returns keyword_results unchanged on any OV failure.
+        """
+        try:
+            result = subprocess.run(
+                [
+                    self._ov_binary,
+                    "find",
+                    nl_input,
+                    "--uri",
+                    f"{self._ov_namespace}/specs",
+                    "--limit",
+                    "5",
+                    "-o",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=_OV_TIMEOUT,
+            )
+            if result.returncode != 0:
+                return keyword_results
+
+            data = json.loads(result.stdout)
+            ov_results = (
+                data if isinstance(data, list) else data.get("results", [])
+            )
+        except (
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+            json.JSONDecodeError,
+            Exception,
+        ):
+            logger.debug("OV semantic search failed, using keyword results only", exc_info=True)
+            return keyword_results
+
+        # Build a map of OV scores by template id
+        ov_scores: dict[str, float] = {}
+        for entry in ov_results:
+            uri = str(entry.get("uri", entry.get("path", "")))
+            score = float(entry.get("score", entry.get("relevance", 0.3)))
+            # Extract template id from URI (e.g. "viking://.../standard-feature.yaml")
+            for tid in self._templates:
+                if tid in uri:
+                    ov_scores[tid] = max(ov_scores.get(tid, 0), score)
+
+        if not ov_scores:
+            return keyword_results
+
+        # Boost existing results
+        existing_ids = {r.template_id for r in keyword_results}
+        boosted: list[TemplateMatch] = []
+        for match in keyword_results:
+            if match.template_id in ov_scores:
+                boost = min(ov_scores[match.template_id] * 0.2, 0.15)
+                new_confidence = min(match.confidence + boost, 1.0)
+                boosted.append(TemplateMatch(
+                    template_id=match.template_id,
+                    template_path=match.template_path,
+                    confidence=round(new_confidence, 3),
+                    matched_keywords=match.matched_keywords,
+                    description=match.description,
+                    suggested_params=match.suggested_params,
+                ))
+            else:
+                boosted.append(match)
+
+        # Add new candidates from OV not in keyword results
+        for tid, score in ov_scores.items():
+            if tid in existing_ids:
+                continue
+            meta = self._templates.get(tid)
+            if meta is None:
+                continue
+            confidence = min(score * 0.5, 0.4)  # Conservative for OV-only
+            if confidence < 0.1:
+                continue
+            suggested_params = self.extract_params(nl_input, tid)
+            boosted.append(TemplateMatch(
+                template_id=tid,
+                template_path=meta.get("path", ""),
+                confidence=round(confidence, 3),
+                matched_keywords=[],
+                description=meta.get("description", ""),
+                suggested_params=suggested_params,
+            ))
+
+        return boosted
 
     def extract_params(
         self, nl_input: str, template_id: str

@@ -480,3 +480,88 @@ class TestRunnerIntegration:
             constitution_path=str(const_path),
         )
         assert runner._context_router is not None
+
+
+# ---------------------------------------------------------------------------
+# OpenViking integration + fallback
+# ---------------------------------------------------------------------------
+
+
+class TestOVFallback:
+    def test_default_no_openviking(self, mock_project, constitution_path):
+        """use_openviking=False (default) does not create OV router."""
+        router = ContextRouter(str(mock_project), constitution_path)
+        assert router._ov_router is None
+        assert router._use_openviking is False
+
+    def test_openviking_enabled_creates_ov_router(self, mock_project, constitution_path):
+        """use_openviking=True creates an OVContextRouter instance."""
+        router = ContextRouter(
+            str(mock_project),
+            constitution_path,
+            use_openviking=True,
+        )
+        assert router._ov_router is not None
+        assert router._use_openviking is True
+
+    def test_ov_failure_falls_back_to_file_scan(
+        self, mock_project, constitution_path, designer_slot, simple_pipeline, monkeypatch
+    ):
+        """When OV returns None, build_context falls back to file scan."""
+        router = ContextRouter(
+            str(mock_project),
+            constitution_path,
+            use_openviking=True,
+        )
+        # Force OV to return None (unavailable)
+        monkeypatch.setattr(router._ov_router, "_available", False)
+
+        items = router.build_context(designer_slot, simple_pipeline)
+        # Should still get file-scan results (constitution + abstract/overview)
+        assert len(items) > 0
+        assert any("constitution" in i.path for i in items)
+
+    def test_ov_exception_falls_back_to_file_scan(
+        self, mock_project, constitution_path, designer_slot, simple_pipeline, monkeypatch
+    ):
+        """When OV raises an exception, build_context falls back to file scan."""
+        router = ContextRouter(
+            str(mock_project),
+            constitution_path,
+            use_openviking=True,
+        )
+
+        def raise_err(*a, **kw):
+            raise RuntimeError("OV crashed")
+
+        monkeypatch.setattr(router._ov_router, "build_context", raise_err)
+
+        items = router.build_context(designer_slot, simple_pipeline)
+        assert len(items) > 0
+        assert any("constitution" in i.path for i in items)
+
+    def test_runner_passes_use_openviking(self, tmp_path):
+        """PipelineRunner passes use_openviking to ContextRouter."""
+        from src.pipeline.runner import PipelineRunner
+
+        (tmp_path / "templates").mkdir()
+        (tmp_path / "state" / "active").mkdir(parents=True)
+        (tmp_path / "state" / "archive").mkdir(parents=True)
+        (tmp_path / "slot-types").mkdir()
+        (tmp_path / "agents").mkdir()
+
+        const_path = tmp_path / "constitution.md"
+        const_path.write_text("# Constitution\nRules here.")
+
+        runner = PipelineRunner(
+            project_root=str(tmp_path),
+            templates_dir=str(tmp_path / "templates"),
+            state_dir=str(tmp_path / "state" / "active"),
+            slot_types_dir=str(tmp_path / "slot-types"),
+            agents_dir=str(tmp_path / "agents"),
+            constitution_path=str(const_path),
+            use_openviking=True,
+        )
+        assert runner._context_router is not None
+        assert runner._context_router._use_openviking is True
+        assert runner._context_router._ov_router is not None

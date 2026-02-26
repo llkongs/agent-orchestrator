@@ -12,9 +12,38 @@
 
 ## User Stories
 
-<!-- List user stories in "As a [role], I want [action], so that [benefit]" format. -->
+<!--
+  List user stories PRIORITIZED by importance (P1, P2, P3...).
+  Each story should be independently testable -- if you implement just ONE,
+  you should still have a viable MVP that delivers value.
+-->
+
+### User Story 1 - {Brief Title} (Priority: P1)
 
 - As a {role}, I want {action}, so that {benefit}.
+
+**Why this priority**: {Explain the value and why it has this priority level}
+
+**Acceptance Scenarios**:
+
+1. **Given** {initial state}, **When** {action}, **Then** {expected outcome}
+
+---
+
+### User Story 2 - {Brief Title} (Priority: P2)
+
+- As a {role}, I want {action}, so that {benefit}.
+
+**Why this priority**: {Explain the value and why it has this priority level}
+
+**Acceptance Scenarios**:
+
+1. **Given** {initial state}, **When** {action}, **Then** {expected outcome}
+
+### Edge Cases
+
+- What happens when {boundary condition}?
+- How does system handle {error scenario}?
 
 ## Requirements
 
@@ -29,6 +58,11 @@
 <!-- Performance, security, scalability, maintainability constraints. Number them NFR-1, NFR-2, etc. -->
 
 - **NFR-1**: {description}
+
+### Key Entities *(include if feature involves data)*
+
+- **{Entity 1}**: {What it represents, key attributes}
+- **{Entity 2}**: {What it represents, relationships}
 
 ## Boundaries
 
@@ -49,6 +83,12 @@
 <!-- Checklist of verifiable conditions that must be true for the feature to be considered done. -->
 
 - [ ] {criterion}
+
+## Success Criteria
+
+<!-- Measurable outcomes that define success. Technology-agnostic and quantifiable. -->
+
+- **SC-1**: {Measurable metric}
 
 ## Dependencies
 
