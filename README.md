@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-527%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-581%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -250,6 +250,47 @@ while True:
 # 3. Check final status
 print(runner.get_summary(state))
 ```
+
+### Automated Execution with AutoExecutor
+
+Instead of manually looping over slots, use `AutoExecutor` to automate the full pipeline:
+
+```python
+from pipeline import AutoExecutor, CallbackExecutor, AutoExecutorConfig
+from pipeline import PipelineRunner, SlotContractManager, SlotRegistry
+
+runner = PipelineRunner(
+    project_root=ROOT,
+    templates_dir=f"{ROOT}/specs/pipelines/templates",
+    state_dir=f"{ROOT}/state/active",
+    slot_types_dir=f"{ROOT}/specs/pipelines/slot-types",
+    agents_dir=f"{ROOT}/agents",
+)
+
+# Create an executor (CallbackExecutor for testing, SubprocessExecutor for real usage)
+agent_executor = CallbackExecutor(lambda slot_input, agent_id: True)
+
+contract_mgr = SlotContractManager(ROOT)
+registry = SlotRegistry(f"{ROOT}/specs/pipelines/slot-types", f"{ROOT}/agents")
+
+auto = AutoExecutor(
+    runner, agent_executor, contract_mgr, registry,
+    config=AutoExecutorConfig(max_parallel=4),
+    project_root=ROOT,
+)
+
+pipeline, state = runner.prepare(template_path, params)
+final_state = auto.run(pipeline, state)  # Fully automated!
+print(runner.get_summary(final_state))
+```
+
+**What AutoExecutor handles automatically:**
+- Agent resolution (explicit assignments or auto-match from registry)
+- Slot input contract generation
+- Parallel execution of slots in the same `parallel_group`
+- Output validation after agent completion
+- Retry logic for failed slots (configurable `max_retries`)
+- Dry run mode (generate contracts without executing agents)
 
 ### Handling Failures
 
@@ -649,8 +690,8 @@ agent-orchestrator/
   architect/                       # Architect working directory
     architecture.md                # System architecture document
   engineer/                        # Engine implementation
-    src/pipeline/                  # 15 modules, ~5500 LOC
-    tests/test_pipeline/           # 527 tests, 97% coverage
+    src/pipeline/                  # 16 modules, ~5900 LOC
+    tests/test_pipeline/           # 581 tests, 97% coverage
   qa/                              # QA review artifacts
   pmo/                             # Project management
   specs/
@@ -681,7 +722,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 527 passed, 97% overall coverage
+# 581 passed, 97% overall coverage
 ```
 
 ## External Tools (Optional)

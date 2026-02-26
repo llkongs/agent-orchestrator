@@ -16,6 +16,14 @@ Usage:
     print(runner.get_summary(state))
 """
 
+from pipeline.auto_executor import (
+    AgentExecutor,
+    AgentResult,
+    AutoExecutor,
+    AutoExecutorConfig,
+    CallbackExecutor,
+    SubprocessExecutor,
+)
 from pipeline.context_router import ContextRouter
 from pipeline.enforcer import SlotEnforcer, EnforcementRule, EnforcementResult, EnforcementAction
 from pipeline.ov_context_router import OVContextRouter
@@ -69,6 +77,13 @@ from pipeline.state import PipelineStateTracker, InvalidTransitionError
 from pipeline.validator import PipelineCycleError, PipelineValidator, ValidationResult
 
 __all__ = [
+    # Auto Executor
+    "AgentExecutor",
+    "AgentResult",
+    "AutoExecutor",
+    "AutoExecutorConfig",
+    "CallbackExecutor",
+    "SubprocessExecutor",
     # Context Router
     "ContextRouter",
     "OVContextRouter",

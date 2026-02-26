@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-527%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-581%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-97%25-brightgreen" alt="Coverage">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
 </p>
@@ -250,6 +250,47 @@ while True:
 # 3. 查看最终状态
 print(runner.get_summary(state))
 ```
+
+### 使用 AutoExecutor 自动执行
+
+无需手动循环槽位，使用 `AutoExecutor` 自动执行整个流水线：
+
+```python
+from pipeline import AutoExecutor, CallbackExecutor, AutoExecutorConfig
+from pipeline import PipelineRunner, SlotContractManager, SlotRegistry
+
+runner = PipelineRunner(
+    project_root=ROOT,
+    templates_dir=f"{ROOT}/specs/pipelines/templates",
+    state_dir=f"{ROOT}/state/active",
+    slot_types_dir=f"{ROOT}/specs/pipelines/slot-types",
+    agents_dir=f"{ROOT}/agents",
+)
+
+# 创建执行器（CallbackExecutor 用于测试，SubprocessExecutor 用于实际使用）
+agent_executor = CallbackExecutor(lambda slot_input, agent_id: True)
+
+contract_mgr = SlotContractManager(ROOT)
+registry = SlotRegistry(f"{ROOT}/specs/pipelines/slot-types", f"{ROOT}/agents")
+
+auto = AutoExecutor(
+    runner, agent_executor, contract_mgr, registry,
+    config=AutoExecutorConfig(max_parallel=4),
+    project_root=ROOT,
+)
+
+pipeline, state = runner.prepare(template_path, params)
+final_state = auto.run(pipeline, state)  # 全自动执行！
+print(runner.get_summary(final_state))
+```
+
+**AutoExecutor 自动处理的内容：**
+- 智能体解析（显式分配或从注册表自动匹配）
+- 槽位输入契约生成
+- 同一 `parallel_group` 中槽位的并行执行
+- 智能体完成后的输出验证
+- 失败槽位的重试逻辑（可配置 `max_retries`）
+- 干运行模式（生成契约但不执行智能体）
 
 ### 处理失败
 
@@ -637,8 +678,8 @@ agent-orchestrator/
   architect/                       # 架构师工作目录
     architecture.md                # 系统架构文档
   engineer/                        # 引擎实现
-    src/pipeline/                  # 15 个模块，约 5500 行代码
-    tests/test_pipeline/           # 527 个测试，97% 覆盖率
+    src/pipeline/                  # 16 个模块，约 5900 行代码
+    tests/test_pipeline/           # 581 个测试，97% 覆盖率
   qa/                              # QA 审查产物
   pmo/                             # 项目管理
   specs/
@@ -669,7 +710,7 @@ agent-orchestrator/
 ```bash
 cd engineer
 PYTHONPATH=src python3 -m pytest tests/test_pipeline/ -v --cov=src/pipeline --cov-report=term-missing
-# 527 个测试通过，97% 整体覆盖率
+# 581 个测试通过，97% 整体覆盖率
 ```
 
 ## 外部工具（可选）
