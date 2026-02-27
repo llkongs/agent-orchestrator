@@ -135,7 +135,64 @@ models.py (zero deps -- foundation)
 | `project_planner.py` | Blueprint data model + validation (meta-orchestration) |
 | `pipeline_generator.py` | Pipeline/slot-type/agent generation from blueprints |
 
-## 6. Quality Gates
+## 6. Pipeline CLI — 使用方法
+
+本项目的核心产出是 pipeline 引擎。所有多步任务必须通过 pipeline CLI 执行。
+
+### 设置别名
+
+```bash
+alias pipeline="PYTHONPATH=/home/coder/project/agent-orchestrator/engineer/src \
+  /home/coder/project/agent-orchestrator/engineer/.venv/bin/python -m pipeline.cli"
+```
+
+### 工作流程
+
+```bash
+# 1. 查看可用模板
+pipeline -P /path/to/target/project templates
+
+# 2. 选择模板，创建流水线实例
+pipeline -P /path/to/target/project prepare standard-feature.yaml -p feature_name=login
+
+# 3. 查看下一步该做什么（哪些槽位已就绪）
+pipeline next
+
+# 4. 开始执行一个槽位（引擎会告诉你目标和交付物）
+pipeline begin slot-design
+
+# 5. 你执行实际工作（写代码、审查、测试等）
+
+# 6. 完成后标记槽位
+pipeline complete slot-design
+
+# 7. 重复 3-6 直到所有槽位完成
+pipeline next
+pipeline begin slot-implement
+# ... 做工作 ...
+pipeline complete slot-implement
+
+# 8. 查看最终状态
+pipeline summary
+```
+
+### 其他命令
+
+| 命令 | 说明 |
+|------|------|
+| `pipeline match <text>` | 自然语言匹配模板（预览，不执行） |
+| `pipeline status` | 显示流水线当前状态 |
+| `pipeline fail <slot_id> <error>` | 标记槽位失败 |
+| `pipeline skip <slot_id>` | 跳过槽位 |
+
+### 关键规则
+
+- `prepare` 后状态存磁盘，后续命令自动恢复，无需重复指定
+- 每个槽位必须先 `begin` 再 `complete`，不能跳过
+- 被依赖的槽位完成后，下游槽位才会出现在 `next` 中
+- 失败的槽位会阻塞下游，用 `skip` 可以绕过
+
+## 7. Quality Gates
 
 - Test coverage >= 85%
 - Zero import violations (only stdlib + yaml)
@@ -145,7 +202,7 @@ models.py (zero deps -- foundation)
 - Checksum integrity on all deliverables (Constitution SS4.3)
 - Cross-validation mandatory: QA independently reproduces metrics (Constitution SS4.9)
 
-## 7. External Tool Integration
+## 8. External Tool Integration
 
 ### Spec Kit (`specify` CLI)
 
